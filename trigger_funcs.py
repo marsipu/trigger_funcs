@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
+import time
 
 
 def get_trigger_only_meg(sub):
@@ -35,21 +36,31 @@ def plot_part_trigger(sub):
     raw = sub.load_raw()
     eeg = raw.pick_types(meg=False, eeg=True)
     
-    
-    eeg_filtered = eeg.filter(0, 10, n_jobs=-1)
-    data = eeg_filtered.get_data()[0]
+    # Filter Data
+    # eeg_filtered = eeg.filter(0, 10, n_jobs=-1)
+    # data = eeg_filtered.get_data()[0]
+
+    data = eeg.get_data()[0]
 
     diff1 = np.diff(data)
     diff10 = data[10:] - data[:-10]
     diff100 = data[100:] - data[:-100]
-    diff500 = data[500:] - data[:-500]
+    diff200 = data[200:] - data[:-200]
+    meandiff = np.array([], dtype=np.float)
+
+    print('Calculating Mean-Diff...')
+    start_time = time.time()
+    for idx, item in enumerate(data[2000:-2000]):
+        meandiff = np.append(meandiff, np.mean(data[idx-2000:idx]) - np.mean(data[idx:idx+2000]))
+    print(f'Calculating Mean-Diff took {round(time.time() - start_time, 2)} s')
 
     plt.figure()
     plt.plot(data[160000:200000], label='data')
     plt.plot(diff1[160000:200000], label='diff1')
     plt.plot(diff10[160000:200000], label='diff10')
     plt.plot(diff100[160000:200000], label='diff100')
-    plt.plot(diff500[160000:200000], label='diff500')
+    plt.plot(diff200[160000:200000], label='diff200')
+    plt.plot(meandiff[160000:200000], label='meandiff')
     plt.legend()
     plt.show()
 
