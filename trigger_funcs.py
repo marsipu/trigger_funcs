@@ -14,10 +14,20 @@ def get_trigger_only_meg(sub):
     else:
         trig_ch = ['EEG 001']
 
-    trig_data = raw.get_data(picks=trig_ch)
+    pd_data = raw.to_data_frame(picks=['EEG 001'])
+    eeg_series = pd_data['EEG 001']
 
-    trig_diff = np.diff(trig_data)[0]
-    trig_peaks, _ = find_peaks(abs(trig_diff), distance=2000)
+    rolling_left2000 = eeg_series.rolling(2000, min_periods=1).mean()
+    rolling_right2000 = eeg_series.iloc[::-1].rolling(2000, min_periods=1).mean()
+    rolling_diff2000 = rolling_left2000 - rolling_right2000
+
+    rolling_left100 = eeg_series.rolling(100, min_periods=1).mean()
+    rolling_right100 = eeg_series.iloc[::-1].rolling(100, min_periods=1).mean()
+    rolling_diff100 = rolling_left100 - rolling_right100
+
+    rolling_leftstd100 = eeg_series.rolling(100, min_periods=1).std()
+    rolling_rightstd100 = eeg_series.iloc[::-1].rolling(100, min_periods=1).std()
+    rolling_diffstd100 = rolling_leftstd100 - rolling_rightstd100
 
     events = np.hstack((np.expand_dims(trig_peaks, axis=1), np.full((len(trig_peaks), 2), 0)))
 
@@ -34,33 +44,37 @@ def get_trigger_only_meg(sub):
 
 def plot_part_trigger(sub):
     raw = sub.load_raw()
-    eeg = raw.pick_types(meg=False, eeg=True)
-    
-    # Filter Data
-    # eeg_filtered = eeg.filter(0, 10, n_jobs=-1)
-    # data = eeg_filtered.get_data()[0]
 
-    data = eeg.get_data()[0]
+    # raw = raw.filter(0, 20, n_jobs=-1)
 
-    diff1 = np.diff(data)
-    diff10 = data[10:] - data[:-10]
-    diff100 = data[100:] - data[:-100]
-    diff200 = data[200:] - data[:-200]
-    meandiff = np.array([], dtype=np.float)
+    pd_data = raw.to_data_frame(picks=['EEG 001'])
+    eeg_series = pd_data['EEG 001']
 
-    print('Calculating Mean-Diff...')
-    start_time = time.time()
-    for idx, item in enumerate(data[2000:-2000]):
-        meandiff = np.append(meandiff, np.mean(data[idx-2000:idx]) - np.mean(data[idx:idx+2000]))
-    print(f'Calculating Mean-Diff took {round(time.time() - start_time, 2)} s')
+    rolling_left2000 = eeg_series.rolling(2000, min_periods=1).mean()
+    rolling_right2000 = eeg_series.iloc[::-1].rolling(2000, min_periods=1).mean()
+    rolling_diff2000 = rolling_left2000 - rolling_right2000
+    rd2000_peaks = find_peaks(rolling_diff2000)
+
+    rolling_left100 = eeg_series.rolling(100, min_periods=1).mean()
+    rolling_right100 = eeg_series.iloc[::-1].rolling(100, min_periods=1).mean()
+    rolling_diff100 = rolling_left100 - rolling_right100
+    rd100_peaks = find_peaks(rolling_diff100)
+
+    rolling_leftstd200 = eeg_series.rolling(200, min_periods=1).std()
+    rolling_rightstd200 = eeg_series.iloc[::-1].rolling(200, min_periods=1).std()
+    rolling_diffstd200 = rolling_leftstd200 - rolling_rightstd200
+    rdstd200_peaks = find_peaks()
+
+    rolling_leftstd100 = eeg_series.rolling(100, min_periods=1).std()
+    rolling_rightstd100 = eeg_series.iloc[::-1].rolling(100, min_periods=1).std()
+    rolling_diffstd100 = rolling_leftstd100 - rolling_rightstd100
 
     plt.figure()
-    plt.plot(data[160000:200000], label='data')
-    plt.plot(diff1[160000:200000], label='diff1')
-    plt.plot(diff10[160000:200000], label='diff10')
-    plt.plot(diff100[160000:200000], label='diff100')
-    plt.plot(diff200[160000:200000], label='diff200')
-    plt.plot(meandiff[160000:200000], label='meandiff')
+    plt.plot(eeg_series[160000:200000], label='data')
+    plt.plot(rolling_diff2000[160000:200000], label='RollingDiff2000')
+    plt.plot(rolling_diff100[160000:200000], label='RollingDiff100')
+    plt.plot(rolling_diffstd200[160000:200000], label='RollingDiffStd200')
+    plt.plot(rolling_diffstd100[160000:200000], label='RollingDiffStd100')
     plt.legend()
     plt.show()
 
