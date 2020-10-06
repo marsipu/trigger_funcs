@@ -8,7 +8,7 @@ def _get_trig_ch(raw):
     if raw.info['nchan'] > 130:
         trig_ch = 'EEG 029'
     elif raw.info['nchan'] == 1:
-        trig_ch = None
+        trig_ch = '29/Weight'
     else:
         trig_ch = 'EEG 001'
 
@@ -61,23 +61,31 @@ def get_load_cell_events(sub):
     events = np.ndarray((0, 3), dtype='int')
     for pk in rd2000_peaks:
 
-        # get the two closest peaks of rdstd100 to the rd2000-peak
-        distance_rdstd100 = rdstd100_peaks - pk
-        closest_rdstd100_peak_idxs = abs(distance_rdstd100).argsort()[:2]
+        # get the two closest peaks of rdstd100 to the rd2000-peak with different signs
+        dist100 = rdstd100_peaks - pk
+        close_dist100 = abs(dist100).argsort()
+        if np.sign(dist100[close_dist100[0]]) != np.sign(dist100[close_dist100[1]]):
+            close2_dist100 = close_dist100[:2]
+        else:
+            close2_dist100 = [close_dist100[0]]
+            # count = 1
+            # while np.sign(dist100[close_dist100[0]]) == np.sign(dist100[close_dist100[count]]):
+            #     count += 1
+            # close2_dist100 = np.append(close_dist100[0], close_dist100[count])
 
         if rolling_diff2000[pk] > 0:
             events = np.append(events, [[pk, 0, 2]], axis=0)
-            for std_pkx in closest_rdstd100_peak_idxs:
+            for std_pkx in close2_dist100:
                 std_pk = rdstd100_peaks[std_pkx]
-                if distance_rdstd100[std_pkx] < 0:
+                if dist100[std_pkx] < 0:
                     events = np.append(events, [[std_pk, 0, 1]], axis=0)
                 else:
                     events = np.append(events, [[std_pk, 0, 3]], axis=0)
         else:
             events = np.append(events, [[pk, 0, 5]], axis=0)
-            for std_pkx in closest_rdstd100_peak_idxs:
+            for std_pkx in close2_dist100:
                 std_pk = rdstd100_peaks[std_pkx]
-                if distance_rdstd100[std_pkx] < 0:
+                if dist100[std_pkx] < 0:
                     events = np.append(events, [[std_pk, 0, 4]], axis=0)
                 else:
                     events = np.append(events, [[std_pk, 0, 6]], axis=0)
@@ -87,6 +95,14 @@ def get_load_cell_events(sub):
     # sort events
     events = events[events[:, 0].argsort()]
 
+    # Remove duplicates
+    uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
+    duplicates = uniques[np.nonzero(counts != 1)]
+
+    for dpl in duplicates:
+        events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
+
+    # Adjust for first sample
     events[:, 0] += raw.first_samp
 
     sub.save_events(events)
