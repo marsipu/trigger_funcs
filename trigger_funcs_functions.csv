@@ -1,4 +1,4 @@
 ;alias;tab;group;subject_loop;matplotlib;mayavi;dependencies;module;func_args
-get_trigger_only_meg;Trigger only MEG;Compute;Pinprick;True;False;False;;trigger_funcs;sub
-only_eeg;;Compute;Pinprick;True;False;False;;trigger_funcs;sub
+get_load_cell_events;;Compute;Pinprick;True;False;False;;trigger_funcs;sub
 plot_part_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
+plot_load_cell_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
