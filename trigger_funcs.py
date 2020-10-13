@@ -5,7 +5,9 @@ import time
 
 
 def _get_trig_ch(raw):
-    if raw.info['nchan'] > 130:
+    if raw.info['nchan'] > 160:
+        trig_ch = 'EEG 064'
+    elif raw.info['nchan'] > 130 and raw.info['nchan'] < 160:
         trig_ch = 'EEG 029'
     elif raw.info['nchan'] == 1:
         trig_ch = '29/Weight'
@@ -21,8 +23,8 @@ def _get_load_cell_trigger(raw):
     eeg_series = pd_data[trig_ch]
 
     # Difference of Rolling Mean on both sides of each value, window=2000
-    rolling_left2000 = eeg_series.rolling(2000, min_periods=1).mean()
-    rolling_right2000 = eeg_series.iloc[::-1].rolling(2000, min_periods=1).mean()
+    rolling_left2000 = eeg_series.rolling(1000, min_periods=1).mean()
+    rolling_right2000 = eeg_series.iloc[::-1].rolling(1000, min_periods=1).mean()
     rolling_diff2000 = rolling_left2000 - rolling_right2000
 
     # Difference of Rolling Mean on both sides of each value, window=100
@@ -50,6 +52,15 @@ def _get_load_cell_trigger(raw):
 
     return pd_data, rolling_diff2000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
            rd2000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100
+
+
+def get_trigger_model(sub):
+    trig_ch = _get_trig_ch(raw)
+    pd_data = raw.to_data_frame(picks=trig_ch)
+    eeg_series = pd_data[trig_ch]
+
+    model_signal = np.concatenate(np.full(2000, 1), np.full(2000, 0))
+    np.concatenate()
 
 
 def get_load_cell_events(sub):
@@ -94,13 +105,14 @@ def get_load_cell_events(sub):
 
     # sort events
     events = events[events[:, 0].argsort()]
+    # Todo: Somehow(in pltest1_256_au), there are uniques left
+    while(len(events[:, 0]) != len(np.unique(events[:, 0]))):
+        # Remove duplicates
+        uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
+        duplicates = uniques[np.nonzero(counts != 1)]
 
-    # Remove duplicates
-    uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
-    duplicates = uniques[np.nonzero(counts != 1)]
-
-    for dpl in duplicates:
-        events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
+        for dpl in duplicates:
+            events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
 
     # Adjust for first sample
     events[:, 0] += raw.first_samp
@@ -122,6 +134,7 @@ def plot_part_trigger(sub):
 
     plt.figure()
     plt.plot(pd_data[trig_ch][tmin:tmax], label='data')
+    plt.plot(pd_data[trig_ch][tmin:tmax], 'ok', label='data_dots')
     plt.plot(rolling_diff2000[tmin:tmax], label='RollingDiff2000')
     plt.plot(rolling_diff100[tmin:tmax], label='RollingDiff100')
     plt.plot(rolling_diffstd200[tmin:tmax], label='RollingDiffStd200')
