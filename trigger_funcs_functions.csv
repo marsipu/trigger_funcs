@@ -1,4 +1,6 @@
 ;alias;tab;group;subject_loop;matplotlib;mayavi;dependencies;module;func_args
-get_load_cell_events;;Compute;Pinprick;True;False;False;;trigger_funcs;sub
+get_load_cell_events;;Compute;Pinprick;True;False;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
 plot_part_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
-plot_load_cell_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
+plot_load_cell_trigger_raw;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
+_get_load_cell_trigger_model;;Compute;Pinprick;True;True;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
+plot_load_cell_epochs;;Compute;Pinprick;True;True;False;;trigger_funcs;sub
