@@ -6,6 +6,8 @@ import time
 import math
 
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events, find_events
+from mne_pipeline_hd.basic_functions.plot import plot_save
+from mne_pipeline_hd.gui.subject_widgets import extract_info
 from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
 
@@ -24,8 +26,9 @@ def _get_trig_ch(raw):
 
 def _get_load_cell_trigger(raw):
     trig_ch = _get_trig_ch(raw)
-    pd_data = raw.to_data_frame(picks=trig_ch)
-    eeg_series = pd_data[trig_ch]
+    eeg_raw = raw.copy().pick(trig_ch)
+    # eeg_raw = eeg_raw.filter(0, 20, n_jobs=-1)
+    eeg_series = eeg_raw.to_data_frame()[trig_ch]
 
     # Difference of Rolling Mean on both sides of each value, window=2000
     rolling_left1000 = eeg_series.rolling(1000, min_periods=1).mean()
@@ -47,16 +50,16 @@ def _get_load_cell_trigger(raw):
     rolling_rightstd100 = eeg_series.iloc[::-1].rolling(100, min_periods=1).std()
     rolling_diffstd100 = rolling_leftstd100 - rolling_rightstd100
 
-    std2000 = np.std(rolling_diff1000)
+    std1000 = np.std(rolling_diff1000)
     stdstd100 = np.std(rolling_diffstd100) * 2
 
-    rd1000_peaks, rd1000_props = find_peaks(abs(rolling_diff1000), height=std2000, distance=3000)
+    rd1000_peaks, rd1000_props = find_peaks(abs(rolling_diff1000), height=std1000, distance=1000)
     rd100_peaks, rd100_props = find_peaks(abs(rolling_diff100), distance=100)
     rdstd200_peaks, rdstd200_props = find_peaks(abs(rolling_diffstd200), distance=100)
     rdstd100_peaks, rdstd100_props = find_peaks(abs(rolling_diffstd100), height=stdstd100, distance=100)
 
-    return pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
-           rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100
+    return eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
+           rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100
 
 
 @small_func
@@ -143,26 +146,23 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
             # close2_dist100 = np.append(close_dist100[0], close_dist100[count])
 
         if rolling_diff1000[pk] > 0:
-            events = np.append(events, [[pk, 0, 2]], axis=0)
-            for std_pkx in close2_dist100:
-                std_pk = rdstd100_peaks[std_pkx]
-                if dist100[std_pkx] < 0:
-                    events = np.append(events, [[std_pk, 0, 1]], axis=0)
-                else:
-                    events = np.append(events, [[std_pk, 0, 3]], axis=0)
+            events = np.append(events, [[pk + raw.first_samp, 0, 2]], axis=0)
+            # for std_pkx in close2_dist100:
+            #     std_pk = rdstd100_peaks[std_pkx]
+            #     if dist100[std_pkx] < 0:
+            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 1]], axis=0)
+            #     else:
+            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 3]], axis=0)
         else:
-            events = np.append(events, [[pk, 0, 5]], axis=0)
-            for std_pkx in close2_dist100:
-                std_pk = rdstd100_peaks[std_pkx]
-                if dist100[std_pkx] < 0:
-                    events = np.append(events, [[std_pk, 0, 4]], axis=0)
-                else:
-                    events = np.append(events, [[std_pk, 0, 6]], axis=0)
+            events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
+            # for std_pkx in close2_dist100:
+            #     std_pk = rdstd100_peaks[std_pkx]
+            #     if dist100[std_pkx] < 0:
+            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 4]], axis=0)
+            #     else:
+            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 6]], axis=0)
 
     print(f'{len(events)} events found for {sub.name}')
-
-    # Adjust for first sample
-    events[:, 0] += raw.first_samp
 
     # sort events
     events = events[events[:, 0].argsort()]
@@ -175,6 +175,9 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
         for dpl in duplicates:
             events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
 
+    print(f'Found {len(np.nonzero(events[:, 2] == 2)[0])} Events for Down')
+    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Up')
+
     sub.save_events(events)
 
 
@@ -184,18 +187,19 @@ def plot_load_cell_epochs(sub):
     eeg_raw = raw.copy().pick(trig_ch)
     events = sub.load_events()
 
-    event_id = {'Down': 2, 'Up': 5}
-    eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=-2, tmax=2, baseline=None)
+    event_id = {'Down': 2}
+    eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=-1, tmax=1, baseline=None)
     eeg_epochs.plot(title=sub.name, event_id=event_id)
 
     data = eeg_epochs.get_data()
-    plt.figure()
+    fig, ax = plt.subplots(1, 1)
     for ep in data:
-        plt.plot(range(-2000, 2001), ep[0])
-        plt.plot(0, data[2001], 'x')
+        ax.plot(range(-1000, 1001), ep[0])
+        ax.plot(0, ep[0][1001], 'x')
 
-    plt.title('All Epochs together')
-    plt.show()
+    fig.suptitle(sub.name)
+    plot_save(sub, 'trigger_epochs', matplotlib_figure=fig)
+    fig.show()
 
 
 def plot_part_trigger(sub):
@@ -211,8 +215,8 @@ def plot_part_trigger(sub):
     tmax = 120000
 
     plt.figure()
-    plt.plot(pd_data[trig_ch][tmin:tmax], label='data')
-    plt.plot(pd_data[trig_ch][tmin:tmax], 'ok', label='data_dots')
+    plt.plot(pd_data[tmin:tmax], label='data')
+    plt.plot(pd_data[tmin:tmax], 'ok', label='data_dots')
     plt.plot(rolling_diff1000[tmin:tmax], label='RollingDiff2000')
     plt.plot(rolling_diff100[tmin:tmax], label='RollingDiff100')
     plt.plot(rolling_diffstd200[tmin:tmax], label='RollingDiffStd200')
@@ -233,13 +237,36 @@ def plot_part_trigger(sub):
     plt.show()
 
 
-def plot_load_cell_trigger_raw(sub):
+def plot_load_cell_trigger_raw(sub, min_duration, shortest_event, adjust_timeline_by_msec):
     raw = sub.load_raw()
     trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.pick(trig_ch)
+    eeg_raw = raw.copy().pick(trig_ch)
     try:
         events = sub.load_events()
     except FileNotFoundError:
-        get_load_cell_events(sub)
+        get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_msec)
         events = sub.load_events()
-    eeg_raw.plot(events, duration=30, scalings='auto', title=sub.name)
+    events = events[np.nonzero(np.isin(events[:, 2], list(sub.event_id.values())))]
+    eeg_raw.plot(events, event_id=sub.event_id, duration=90, scalings='auto', title=sub.name)
+
+
+def plot_ica_trigger(sub):
+    raw = sub.load_raw()
+    trig_ch = _get_trig_ch(raw)
+    eeg_raw = raw.copy().pick(trig_ch)
+    raw_filtered = sub.load_filtered()
+    raw_filtered = raw_filtered.copy().pick_types(meg=True, eeg=False, eog=False, stim=False, exclude=sub.bad_channels)
+    ica = sub.load_ica()
+    events = sub.load_events()
+    ica_sources = ica.get_sources(raw_filtered)
+    try:
+        ica_sources = ica_sources.add_channels([eeg_raw], force_update_info=True)
+    except AssertionError:
+        pass
+
+    ica_sources.plot(events, n_channels=26, event_id=sub.event_id, duration=30, scalings='auto')
+
+
+def reload_info_dict(sub):
+    raw = sub.load_raw()
+    extract_info(sub.pr, raw, sub.name)
