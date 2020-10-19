@@ -1,5 +1,6 @@
 import mne
 import numpy as np
+from mne.utils._bunch import NamedInt
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 import time
@@ -53,7 +54,7 @@ def _get_load_cell_trigger(raw):
     std1000 = np.std(rolling_diff1000)
     stdstd100 = np.std(rolling_diffstd100) * 2
 
-    rd1000_peaks, rd1000_props = find_peaks(abs(rolling_diff1000), height=std1000, distance=1000)
+    rd1000_peaks, rd1000_props = find_peaks(abs(rolling_diff1000), height=std1000, distance=2500)
     rd100_peaks, rd100_props = find_peaks(abs(rolling_diff100), distance=100)
     rdstd200_peaks, rdstd200_props = find_peaks(abs(rolling_diffstd200), distance=100)
     rdstd100_peaks, rdstd100_props = find_peaks(abs(rolling_diffstd100), height=stdstd100, distance=100)
@@ -146,7 +147,7 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
             # close2_dist100 = np.append(close_dist100[0], close_dist100[count])
 
         if rolling_diff1000[pk] > 0:
-            events = np.append(events, [[pk + raw.first_samp, 0, 2]], axis=0)
+            events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
             # for std_pkx in close2_dist100:
             #     std_pk = rdstd100_peaks[std_pkx]
             #     if dist100[std_pkx] < 0:
@@ -154,7 +155,7 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
             #     else:
             #         events = np.append(events, [[std_pk + raw.first_samp, 0, 3]], axis=0)
         else:
-            events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
+            events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
             # for std_pkx in close2_dist100:
             #     std_pk = rdstd100_peaks[std_pkx]
             #     if dist100[std_pkx] < 0:
@@ -187,9 +188,9 @@ def plot_load_cell_epochs(sub):
     eeg_raw = raw.copy().pick(trig_ch)
     events = sub.load_events()
 
-    event_id = {'Down': 2}
+    event_id = {'Down': 5}
     eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=-1, tmax=1, baseline=None)
-    eeg_epochs.plot(title=sub.name, event_id=event_id)
+    # eeg_epochs.plot(title=sub.name, event_id=event_id)
 
     data = eeg_epochs.get_data()
     fig, ax = plt.subplots(1, 1)
@@ -211,8 +212,8 @@ def plot_part_trigger(sub):
     pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100 = _get_load_cell_trigger(raw)
 
-    tmin = 80000
-    tmax = 120000
+    tmin = 180000
+    tmax = 220000
 
     plt.figure()
     plt.plot(pd_data[tmin:tmax], label='data')
@@ -270,3 +271,70 @@ def plot_ica_trigger(sub):
 def reload_info_dict(sub):
     raw = sub.load_raw()
     extract_info(sub.pr, raw, sub.name)
+
+
+def plot_evokeds_half(sub):
+    epochs = sub.load_epochs()
+
+    for trial in sub.event_id:
+        trial_epochs = epochs[trial]
+        h1_evoked = trial_epochs[:int(len(epochs[trial]) / 2)].average()
+        h2_evoked = trial_epochs[int(len(epochs[trial]) / 2):].average()
+
+        fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+
+        h1_axes = [axes[0, 0], axes[1, 0]]
+        h1_evoked.plot(axes=h1_axes)
+        axes[0, 0].set_title(f'{sub.name}-{trial} First Half')
+
+        h2_axes = [axes[0, 1], axes[1, 1]]
+        h2_evoked.plot(axes=h2_axes)
+        axes[0, 1].set_title(f'{sub.name}-{trial} Second Half')
+
+        plot_save(sub, 'evokeds', subfolder='h1h2', trial=trial, matplotlib_figure=fig)
+        fig.show()
+
+
+def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
+    """
+    Function to get EEG-Montage from digitized EEG-Electrodes
+    (without them having be labeled as EEG during Digitization)
+
+    Notes
+    -----
+    By Laura Doll, adapted by Martin Schulz
+    """
+    raw = sub.load_raw()
+
+    ch_pos = dict()
+    extra_points = [dp for dp in raw.info['dig'] if int(dp['kind']) == 4]
+
+    if eeg_dig_first:
+        for dp in extra_points[:n_eeg_channels]:
+            # raw.info['dig'].remove(dp)
+            # dp['kind'] = NamedInt('FIFFV_POINT_EEG', 3)
+            # raw.info['dig'].append(dp)
+            ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
+            hsp = np.asarray([dp['r'] for dp in extra_points[n_eeg_channels:]])
+    else:
+        for dp in extra_points[-n_eeg_channels:]:
+            ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
+            hsp = np.asarray([dp['r'] for dp in extra_points[:-n_eeg_channels]])
+
+    lpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 1][0]
+    nasion = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 2][0]
+    rpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 3][0]
+
+    hpi = np.asarray([dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 2])
+
+    montage = mne.channels.make_dig_montage(ch_pos, nasion, lpa, rpa, hsp, hpi)
+
+    print(f'Added {n_eeg_channels} EEG-Channels to montage, '
+          f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
+
+    raw.set_montage(montage)
+    # sub.save_raw(raw)
+
+    filtered = sub.load_filtered()
+    filtered.info = raw.info
+    sub.save_filtered(filtered)

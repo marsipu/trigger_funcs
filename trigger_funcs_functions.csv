@@ -6,3 +6,5 @@ _get_load_cell_trigger_model;;Compute;Pinprick;True;True;False;;trigger_funcs;su
 plot_load_cell_epochs;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
 plot_ica_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
 reload_info_dict;;Orga;Pinprick;True;False;False;;trigger_funcs;sub
+plot_evokeds_half;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
+get_dig_eegs;;Orga;Pinprick;True;False;False;;trigger_funcs;sub, n_eeg_channels, eeg_dig_first
