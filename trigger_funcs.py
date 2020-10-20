@@ -5,7 +5,10 @@ from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 import time
 import math
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
 
+from mne_pipeline_hd.basic_functions.loading import CurrentSub
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events, find_events
 from mne_pipeline_hd.basic_functions.plot import plot_save
 from mne_pipeline_hd.gui.subject_widgets import extract_info
@@ -126,42 +129,37 @@ def _get_load_cell_trigger_model(sub, min_duration, shortest_event, adjust_timel
 def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_msec):
     raw = sub.load_raw()
 
-    pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
+    eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100 = _get_load_cell_trigger(raw)
 
     find_6ch_binary_events(sub, min_duration, shortest_event, adjust_timeline_by_msec)
     events = sub.load_events()
 
     for pk in rd1000_peaks:
-
-        # get the two closest peaks of rdstd100 to the rd2000-peak with different signs
-        dist100 = rdstd100_peaks - pk
-        close_dist100 = abs(dist100).argsort()
-        if np.sign(dist100[close_dist100[0]]) != np.sign(dist100[close_dist100[1]]):
-            close2_dist100 = close_dist100[:2]
-        else:
-            close2_dist100 = [close_dist100[0]]
-            # count = 1
-            # while np.sign(dist100[close_dist100[0]]) == np.sign(dist100[close_dist100[count]]):
-            #     count += 1
-            # close2_dist100 = np.append(close_dist100[0], close_dist100[count])
-
+        sp = np.asarray(eeg_series[pk-500:pk+500])
+        rd100 = np.asarray(rolling_diff100[pk-500:pk+500])
+        # Correct Offset
+        spoff = sp - np.mean(sp[:250])
         if rolling_diff1000[pk] > 0:
-            events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
-            # for std_pkx in close2_dist100:
-            #     std_pk = rdstd100_peaks[std_pkx]
-            #     if dist100[std_pkx] < 0:
-            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 1]], axis=0)
-            #     else:
-            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 3]], axis=0)
+            try:
+                # Get last index under some threshold for rd100
+                rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * 2)[0][-1]
+                # Get first value under some threshold for spoff
+                trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] < np.std(spoff[:250]) * -3)[0][0] + rd100lastidx)
+                trig_time = pk - trig_idx + raw.first_samp
+                events = np.append(events, [[trig_time, 0, 5]], axis=0)
+            except IndexError:
+                events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
         else:
-            events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
-            # for std_pkx in close2_dist100:
-            #     std_pk = rdstd100_peaks[std_pkx]
-            #     if dist100[std_pkx] < 0:
-            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 4]], axis=0)
-            #     else:
-            #         events = np.append(events, [[std_pk + raw.first_samp, 0, 6]], axis=0)
+            try:
+                # Get last index above some threshold for rd100
+                rd100lastidx = np.nonzero(rd100[:500] > np.std(rd100[:250]) * -2)[0][-1]
+                # Get first value above some threshold for spoff
+                trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] > np.std(spoff[:250]) * 3)[0][0] + rd100lastidx)
+                trig_time = pk - trig_idx + raw.first_samp
+                events = np.append(events, [[trig_time, 0, 6]], axis=0)
+            except:
+                events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
 
     print(f'{len(events)} events found for {sub.name}')
 
@@ -176,8 +174,8 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
         for dpl in duplicates:
             events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
 
-    print(f'Found {len(np.nonzero(events[:, 2] == 2)[0])} Events for Down')
-    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Up')
+    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down')
+    print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Up')
 
     sub.save_events(events)
 
@@ -333,8 +331,30 @@ def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
           f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
 
     raw.set_montage(montage)
-    # sub.save_raw(raw)
+    sub.save_raw(raw)
 
-    filtered = sub.load_filtered()
-    filtered.info = raw.info
-    sub.save_filtered(filtered)
+
+def plot_evokeds_pltest_overview(ga_group):
+    ltc_dict = dict()
+    for file in ga_group.group_list:
+        sub = CurrentSub(file, ga_group.mw)
+        ltcs = sub.load_ltc()
+
+        for trial in ltcs:
+            if trial not in ltc_dict:
+                ltc_dict[trial] = dict()
+            for label in ltcs[trial]:
+                if label not in ltc_dict[trial]:
+                    ltc_dict[trial][label] = dict()
+                ltc_dict[trial][label][file] = ltcs[trial][label]
+
+    for trial in ltc_dict:
+        for label in ltc_dict[trial]:
+            fig = plt.figure()
+            for file in ltc_dict[trial][label]:
+                plt.plot(ltc_dict[trial][label][file][1], ltc_dict[trial][label][file][0], label=file)
+            plt.title(f'{trial}-{label}')
+            plt.legend()
+            plt.xlabel('Time in s')
+            plt.ylabel('Source amplitude')
+            plot_save(ga_group, 'pltest_ltc_overview', subfolder=label, trial=trial, matplotlib_figure=fig)

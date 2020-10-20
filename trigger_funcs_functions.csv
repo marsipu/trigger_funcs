@@ -1,10 +1,10 @@
 ;alias;tab;group;subject_loop;matplotlib;mayavi;dependencies;module;func_args
-get_load_cell_events;;Compute;Pinprick;True;False;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
-plot_part_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
-plot_load_cell_trigger_raw;;Plot;Pinprick;True;True;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
-_get_load_cell_trigger_model;;Compute;Pinprick;True;True;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
-plot_load_cell_epochs;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
-plot_ica_trigger;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
-reload_info_dict;;Orga;Pinprick;True;False;False;;trigger_funcs;sub
-plot_evokeds_half;;Plot;Pinprick;True;True;False;;trigger_funcs;sub
-get_dig_eegs;;Orga;Pinprick;True;False;False;;trigger_funcs;sub, n_eeg_channels, eeg_dig_first
+get_load_cell_events;;Compute;PP-Trigger;True;False;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
+plot_part_trigger;;Plot;PP-Trigger;True;True;False;;trigger_funcs;sub
+plot_load_cell_trigger_raw;;Plot;PP-Trigger;True;True;False;;trigger_funcs;sub, min_duration, shortest_event, adjust_timeline_by_msec
+plot_load_cell_epochs;;Plot;PP-Trigger;True;True;False;;trigger_funcs;sub
+plot_ica_trigger;;Plot;PP-Trigger;True;True;False;;trigger_funcs;sub
+reload_info_dict;;Orga;PP-Trigger;True;False;False;;trigger_funcs;sub
+plot_evokeds_half;;Plot;PP-Trigger;True;True;False;;trigger_funcs;sub
+get_dig_eegs;;Orga;PP-Trigger;True;False;False;;trigger_funcs;sub, n_eeg_channels, eeg_dig_first
+plot_evokeds_pltest_overview;;Plot;PP-Trigger;False;False;False;;trigger_funcs;ga_group
