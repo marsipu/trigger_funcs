@@ -148,7 +148,7 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
         else:
             previous_id = 33
 
-        if previous_id == 33:
+        if previous_id == 33 or previous_id == 1:
             try:
                 # Get last index under some threshold for rd100
                 rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * 2)[0][-1]
