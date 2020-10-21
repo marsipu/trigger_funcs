@@ -143,9 +143,12 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
 
         diff_times = events[:, 0] - (pk + raw.first_samp)
         neg_diff_times = diff_times[np.nonzero(diff_times < 0)]
-        previous_id = events[np.nonzero(diff_times == np.max(neg_diff_times)), 2]
+        if len(neg_diff_times) > 0:
+            previous_id = int(events[np.nonzero(diff_times == np.max(neg_diff_times)), 2])
+        else:
+            previous_id = 33
 
-        if previous_id == 1:
+        if previous_id == 33:
             try:
                 # Get last index under some threshold for rd100
                 rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * 2)[0][-1]
@@ -163,7 +166,7 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
                 trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] > np.std(spoff[:250]) * 3)[0][0] + rd100lastidx)
                 trig_time = pk - trig_idx + raw.first_samp
                 events = np.append(events, [[trig_time, 0, 6]], axis=0)
-            except:
+            except IndexError:
                 events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
 
     print(f'{len(events)} events found for {sub.name}')
