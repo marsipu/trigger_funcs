@@ -313,19 +313,21 @@ def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
     raw = sub.load_raw()
 
     ch_pos = dict()
+    hsp = None
+    hsp_points = list()
     extra_points = [dp for dp in raw.info['dig'] if int(dp['kind']) == 4]
 
     if eeg_dig_first:
         for dp in extra_points[:n_eeg_channels]:
-            # raw.info['dig'].remove(dp)
-            # dp['kind'] = NamedInt('FIFFV_POINT_EEG', 3)
-            # raw.info['dig'].append(dp)
             ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
-            hsp = np.asarray([dp['r'] for dp in extra_points[n_eeg_channels:]])
+            hsp_points = [dp['r'] for dp in extra_points[n_eeg_channels:]]
     else:
         for dp in extra_points[-n_eeg_channels:]:
             ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
-            hsp = np.asarray([dp['r'] for dp in extra_points[:-n_eeg_channels]])
+            hsp_points = [dp['r'] for dp in extra_points[:-n_eeg_channels]]
+
+    if len(hsp_points) > 0:
+        hsp = np.asarray(hsp_points)
 
     lpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 1][0]
     nasion = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 2][0]
@@ -338,7 +340,7 @@ def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
     print(f'Added {n_eeg_channels} EEG-Channels to montage, '
           f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
 
-    raw.set_montage(montage)
+    raw.set_montage(montage, on_missing='warn')
     sub.save_raw(raw)
 
 
