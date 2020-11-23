@@ -1,24 +1,21 @@
+import math
+
+import matplotlib.pyplot as plt
 import mne
 import numpy as np
-from mne.utils._bunch import NamedInt
 from scipy.signal import find_peaks
-import matplotlib.pyplot as plt
-import time
-import math
-import statsmodels.api as sm
-import matplotlib.pyplot as plt
 
-from mne_pipeline_hd.basic_functions.loading import CurrentSub
-from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events, find_events
+from mne_pipeline_hd.basic_functions.loading import MEEG
+from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
 from mne_pipeline_hd.basic_functions.plot import plot_save
-from mne_pipeline_hd.gui.subject_widgets import extract_info
+from mne_pipeline_hd.gui.loading_widgets import extract_info
 from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
 
 def _get_trig_ch(raw):
     if raw.info['nchan'] > 160:
         trig_ch = 'EEG 064'
-    elif raw.info['nchan'] > 130 and raw.info['nchan'] < 160:
+    elif 130 < raw.info['nchan'] < 160:
         trig_ch = 'EEG 029'
     elif raw.info['nchan'] == 1:
         trig_ch = '29/Weight'
@@ -62,8 +59,8 @@ def _get_load_cell_trigger(raw):
     rdstd200_peaks, rdstd200_props = find_peaks(abs(rolling_diffstd200), distance=100)
     rdstd100_peaks, rdstd100_props = find_peaks(abs(rolling_diffstd100), height=stdstd100, distance=100)
 
-    return eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
-           rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100
+    return (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
+            rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100)
 
 
 @small_func
@@ -83,18 +80,17 @@ def cross_correlation(x, y):
     return lags, correls, max_lag, max_val
 
 
-def _get_load_cell_trigger_model(sub, min_duration, shortest_event, adjust_timeline_by_msec):
-    raw = sub.load_raw()
+def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
+    raw = meeg.load_raw()
 
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
-    eeg_series = eeg_raw.to_data_frame()[trig_ch]
 
     model_signal_down = np.append(np.full(1000, 1), np.full(1000, 0))
     model_signal_up = np.append(np.full(1000, 0), np.full(1000, 1))
 
-    find_6ch_binary_events(sub, min_duration, shortest_event, adjust_timeline_by_msec)
-    events = sub.load_events()
+    find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
+    events = meeg.load_events()
 
     event_id = {'Matlab-Start': 32}
     eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=0, tmax=7, baseline=None)
@@ -113,7 +109,7 @@ def _get_load_cell_trigger_model(sub, min_duration, shortest_event, adjust_timel
         axes[0].plot(max_lag_up, max_val_up, 'x')
 
         # Amplify eeg-data
-        amp_factor = 10**abs(round(math.log(np.mean(abs(ep_data)), 10) * -1) + 1)
+        amp_factor = 10 ** abs(round(math.log(np.mean(abs(ep_data)), 10) * -1) + 1)
         axes[1].plot(ep_data[max_lag_down - 500:max_lag_down + 500] * amp_factor)
         axes[1].plot(model_signal_down[500:-500])
         axes[2].plot(ep_data[max_lag_up - 500:max_lag_up + 500] * amp_factor)
@@ -126,18 +122,18 @@ def _get_load_cell_trigger_model(sub, min_duration, shortest_event, adjust_timel
     fig.show()
 
 
-def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_msec):
-    raw = sub.load_raw()
+def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
+    raw = meeg.load_raw()
 
-    eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
-    rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100 = _get_load_cell_trigger(raw)
+    (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
+     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
 
-    find_6ch_binary_events(sub, min_duration, shortest_event, adjust_timeline_by_msec)
-    events = sub.load_events()
+    find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
+    events = meeg.load_events()
 
     for pk in rd1000_peaks:
-        sp = np.asarray(eeg_series[pk-500:pk+500])
-        rd100 = np.asarray(rolling_diff100[pk-500:pk+500])
+        sp = np.asarray(eeg_series[pk - 500:pk + 500])
+        rd100 = np.asarray(rolling_diff100[pk - 500:pk + 500])
         # Correct Offset
         spoff = sp - np.mean(sp[:250])
 
@@ -169,12 +165,12 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
             except IndexError:
                 events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
 
-    print(f'{len(events)} events found for {sub.name}')
+    print(f'{len(events)} events found for {meeg.name}')
 
     # sort events
     events = events[events[:, 0].argsort()]
     # Todo: Somehow(in pltest1_256_au), there are uniques left
-    while (len(events[:, 0]) != len(np.unique(events[:, 0]))):
+    while len(events[:, 0]) != len(np.unique(events[:, 0])):
         # Remove duplicates
         uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
         duplicates = uniques[np.nonzero(counts != 1)]
@@ -185,18 +181,18 @@ def get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_m
     print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down')
     print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Up')
 
-    sub.save_events(events)
+    meeg.save_events(events)
 
 
-def plot_load_cell_epochs(sub):
-    raw = sub.load_raw()
+def plot_load_cell_epochs(meeg):
+    raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
-    events = sub.load_events()
+    events = meeg.load_events()
 
     event_id = {'Down': 5}
     eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=-1, tmax=1, baseline=None)
-    # eeg_epochs.plot(title=sub.name, event_id=event_id)
+    # eeg_epochs.plot(title=meeg.name, event_id=event_id)
 
     data = eeg_epochs.get_data()
     fig, ax = plt.subplots(1, 1)
@@ -204,19 +200,19 @@ def plot_load_cell_epochs(sub):
         ax.plot(range(-1000, 1001), ep[0])
         ax.plot(0, ep[0][1001], 'x')
 
-    fig.suptitle(sub.name)
-    plot_save(sub, 'trigger_epochs', matplotlib_figure=fig)
+    fig.suptitle(meeg.name)
+    plot_save(meeg, 'trigger_epochs', matplotlib_figure=fig)
     fig.show()
 
 
-def plot_part_trigger(sub):
-    raw = sub.load_raw()
+def plot_part_trigger(meeg):
+    raw = meeg.load_raw()
 
     # raw = raw.filter(0, 20, n_jobs=-1)
     trig_ch = _get_trig_ch(raw)
 
-    pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100, \
-    rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100 = _get_load_cell_trigger(raw)
+    (pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
+    rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
 
     tmin = 180000
     tmax = 220000
@@ -244,45 +240,45 @@ def plot_part_trigger(sub):
     plt.show()
 
 
-def plot_load_cell_trigger_raw(sub, min_duration, shortest_event, adjust_timeline_by_msec):
-    raw = sub.load_raw()
+def plot_load_cell_trigger_raw(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
+    raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
     try:
-        events = sub.load_events()
+        events = meeg.load_events()
     except FileNotFoundError:
-        get_load_cell_events(sub, min_duration, shortest_event, adjust_timeline_by_msec)
-        events = sub.load_events()
-    events = events[np.nonzero(np.isin(events[:, 2], list(sub.event_id.values())))]
-    eeg_raw.plot(events, event_id=sub.event_id, duration=90, scalings='auto', title=sub.name)
+        get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
+        events = meeg.load_events()
+    events = events[np.nonzero(np.isin(events[:, 2], list(meeg.event_id.values())))]
+    eeg_raw.plot(events, event_id=meeg.event_id, duration=90, scalings='auto', title=meeg.name)
 
 
-def plot_ica_trigger(sub):
-    raw = sub.load_raw()
+def plot_ica_trigger(meeg):
+    raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
-    raw_filtered = sub.load_filtered()
-    raw_filtered = raw_filtered.copy().pick_types(meg=True, eeg=False, eog=False, stim=False, exclude=sub.bad_channels)
-    ica = sub.load_ica()
-    events = sub.load_events()
+    raw_filtered = meeg.load_filtered()
+    raw_filtered = raw_filtered.copy().pick_types(meg=True, eeg=False, eog=False, stim=False, exclude=meeg.bad_channels)
+    ica = meeg.load_ica()
+    events = meeg.load_events()
     ica_sources = ica.get_sources(raw_filtered)
     try:
         ica_sources = ica_sources.add_channels([eeg_raw], force_update_info=True)
     except AssertionError:
         pass
 
-    ica_sources.plot(events, n_channels=26, event_id=sub.event_id, duration=30, scalings='auto')
+    ica_sources.plot(events, n_channels=26, event_id=meeg.event_id, duration=30, scalings='auto')
 
 
-def reload_info_dict(sub):
-    raw = sub.load_raw()
-    extract_info(sub.pr, raw, sub.name)
+def reload_info_dict(meeg):
+    raw = meeg.load_raw()
+    extract_info(meeg.pr, raw, meeg.name)
 
 
-def plot_evokeds_half(sub):
-    epochs = sub.load_epochs()
+def plot_evokeds_half(meeg):
+    epochs = meeg.load_epochs()
 
-    for trial in sub.event_id:
+    for trial in meeg.event_id:
         trial_epochs = epochs[trial]
         h1_evoked = trial_epochs[:int(len(epochs[trial]) / 2)].average()
         h2_evoked = trial_epochs[int(len(epochs[trial]) / 2):].average()
@@ -291,17 +287,17 @@ def plot_evokeds_half(sub):
 
         h1_axes = [axes[0, 0], axes[1, 0]]
         h1_evoked.plot(axes=h1_axes)
-        axes[0, 0].set_title(f'{sub.name}-{trial} First Half')
+        axes[0, 0].set_title(f'{meeg.name}-{trial} First Half')
 
         h2_axes = [axes[0, 1], axes[1, 1]]
         h2_evoked.plot(axes=h2_axes)
-        axes[0, 1].set_title(f'{sub.name}-{trial} Second Half')
+        axes[0, 1].set_title(f'{meeg.name}-{trial} Second Half')
 
-        plot_save(sub, 'evokeds', subfolder='h1h2', trial=trial, matplotlib_figure=fig)
+        plot_save(meeg, 'evokeds', subfolder='h1h2', trial=trial, matplotlib_figure=fig)
         fig.show()
 
 
-def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
+def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     """
     Function to get EEG-Montage from digitized EEG-Electrodes
     (without them having be labeled as EEG during Digitization)
@@ -310,7 +306,7 @@ def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
     -----
     By Laura Doll, adapted by Martin Schulz
     """
-    raw = sub.load_raw()
+    raw = meeg.load_raw()
 
     ch_pos = dict()
     hsp = None
@@ -341,14 +337,14 @@ def get_dig_eegs(sub, n_eeg_channels, eeg_dig_first=True):
           f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
 
     raw.set_montage(montage, on_missing='warn')
-    sub.save_raw(raw)
+    meeg.save_raw(raw)
 
 
-def plot_evokeds_pltest_overview(ga_group):
+def plot_evokeds_pltest_overview(group):
     ltc_dict = dict()
-    for file in ga_group.group_list:
-        sub = CurrentSub(file, ga_group.mw)
-        ltcs = sub.load_ltc()
+    for file in group.group_list:
+        meeg = MEEG(file, group.mw)
+        ltcs = meeg.load_ltc()
 
         for trial in ltcs:
             if trial not in ltc_dict:
@@ -367,4 +363,4 @@ def plot_evokeds_pltest_overview(ga_group):
             plt.legend()
             plt.xlabel('Time in s')
             plt.ylabel('Source amplitude')
-            plot_save(ga_group, 'pltest_ltc_overview', subfolder=label, trial=trial, matplotlib_figure=fig)
+            plot_save(group, 'pltest_ltc_overview', subfolder=label, trial=trial, matplotlib_figure=fig)
