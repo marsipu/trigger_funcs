@@ -3,6 +3,8 @@ import math
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
+from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from mne.utils._bunch import NamedInt
 from scipy.signal import find_peaks
 
 from mne_pipeline_hd.basic_functions.loading import MEEG
@@ -364,3 +366,18 @@ def plot_evokeds_pltest_overview(group):
             plt.xlabel('Time in s')
             plt.ylabel('Source amplitude')
             plot_save(group, 'pltest_ltc_overview', subfolder=label, trial=trial, matplotlib_figure=fig)
+
+
+class ManualTriggerGui(QDialog):
+    def __init__(self, mw):
+        super().__init__(mw)
+        self.mw = mw
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+
+        self.setLayout(layout)
+
+
+def manual_trigger_gui(mw):
+    ManualTriggerGui(mw)
