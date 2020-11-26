@@ -3,7 +3,9 @@ import math
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QPushButton, QVBoxLayout
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
 from mne.utils._bunch import NamedInt
 from scipy.signal import find_peaks
 
@@ -214,7 +216,7 @@ def plot_part_trigger(meeg):
     trig_ch = _get_trig_ch(raw)
 
     (pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
-    rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
+     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
 
     tmin = 180000
     tmax = 220000
@@ -373,10 +375,94 @@ class ManualTriggerGui(QDialog):
         super().__init__(mw)
         self.mw = mw
 
+        self.meeg = None
+        self.events = None
+        self.raw = None
+        self.ev_idx = None
+        self.x_data = np.arange(-1000, 1001)
+        self.line = None
+
+        self.init_ui()
+        self.open()
+
     def init_ui(self):
         layout = QVBoxLayout()
 
+        cmbx = QComboBox()
+        cmbx.addItems(self.mw.pr.all_files)
+        cmbx.currentTextChanged.connect(self.select_meeg)
+
+        self.fig = Figure()
+        # Add a subplot (1x1, index 1)
+        self.axes = self.fig.add_subplot(1, 1, 1)
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        layout.addWidget(self.canvas)
+
+        bt_layout = QHBoxLayout()
+        prev_bt = QPushButton('Previous')
+        prev_bt.clicked.connect(self.previous)
+        bt_layout.addWidget(prev_bt)
+
+        minus_bt = QPushButton('-')
+        minus_bt.clicked.connect(self.minus)
+        bt_layout.addWidget(minus_bt)
+
+        plus_bt = QPushButton('+')
+        plus_bt.clicked.connect(self.plus)
+        bt_layout.addWidget(plus_bt)
+
+        next_bt = QPushButton('Next')
+        next_bt.clicked.connect(self.next)
+        bt_layout.addWidget(next_bt)
+        layout.addLayout(bt_layout)
+
         self.setLayout(layout)
+
+    def select_meeg(self, name):
+        # Save events of predecessor
+        if self.meeg and self.events:
+            self.meeg.save_events(self.events)
+
+        self.meeg = MEEG(name, self.mw)
+        self.events = self.meeg.load_events()
+        # Pick only events with id 5 (Down)
+        self.events = self.events[np.nonzero(self.events[:, 2] == 5)]
+        # Start at first event
+        self.ev_idx = 0
+        self.raw = self.meeg.load_raw()
+        self.trig_ch = _get_trig_ch(self.raw)
+
+        self.update_line()
+        self.update_mark()
+
+    def update_line(self):
+        y_data = self.raw.get_data(picks=self.trig_ch,
+                                   start=self.events[self.ev_idx, 0] - 1000,
+                                   stop=self.events[self.ev_idx, 0] + 1000)
+
+        if self.line is None:
+            self.line, = self.axes.plot(self.x_data, y_data, 'b')
+            self.axes.axvline(x=0, color='r')
+        else:
+            self.line.set_ydata(y_data)
+
+        self.canvas.draw()
+
+    def previous(self):
+        self.ev_idx -= 1
+        self.update_line()
+
+    def next(self):
+        self.ev_idx += 1
+        self.update_line()
+
+    def minus(self):
+        self.events[self.ev_idx, 0] -= 1
+        self.update_line()
+
+    def plus(self):
+        self.events[self.ev_idx, 0] += 1
+        self.update_line()
 
 
 def manual_trigger_gui(mw):
