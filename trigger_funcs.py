@@ -3,7 +3,9 @@ import math
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
-from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QPushButton, QVBoxLayout
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from mne.utils._bunch import NamedInt
@@ -378,19 +380,27 @@ class ManualTriggerGui(QDialog):
         self.meeg = None
         self.events = None
         self.raw = None
-        self.ev_idx = None
-        self.x_data = np.arange(-1000, 1001)
+        self.ev_idx = 0
+        self.x_data = np.arange(-1000, 1000)
         self.line = None
 
         self.init_ui()
         self.open()
+        self.showFullScreen()
 
     def init_ui(self):
         layout = QVBoxLayout()
 
         cmbx = QComboBox()
-        cmbx.addItems(self.mw.pr.all_files)
+        cmbx.addItems(self.mw.pr.all_meeg)
         cmbx.currentTextChanged.connect(self.select_meeg)
+        layout.addWidget(cmbx)
+
+        self.idx_label = QLabel()
+        self.idx_label.setText(str(self.ev_idx))
+        self.idx_label.setFont(QFont('AnyStyle', 20))
+        self.idx_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        layout.addWidget(self.idx_label, alignment=Qt.AlignHCenter)
 
         self.fig = Figure()
         # Add a subplot (1x1, index 1)
@@ -399,22 +409,41 @@ class ManualTriggerGui(QDialog):
         layout.addWidget(self.canvas)
 
         bt_layout = QHBoxLayout()
-        prev_bt = QPushButton('Previous')
-        prev_bt.clicked.connect(self.previous)
-        bt_layout.addWidget(prev_bt)
+        self.prev_bt = QPushButton('Previous')
+        self.prev_bt.clicked.connect(self.previous)
+        bt_layout.addWidget(self.prev_bt)
 
-        minus_bt = QPushButton('-')
-        minus_bt.clicked.connect(self.minus)
-        bt_layout.addWidget(minus_bt)
+        self.minus_bt = QPushButton('-')
+        self.minus_bt.clicked.connect(self.minus)
+        bt_layout.addWidget(self.minus_bt)
 
-        plus_bt = QPushButton('+')
-        plus_bt.clicked.connect(self.plus)
-        bt_layout.addWidget(plus_bt)
+        spinbx = QSpinBox()
+        spinbx.setMinimum(1)
+        spinbx.setMaximum(1000)
+        spinbx.valueChanged.connect(self.set_steps)
+        bt_layout.addWidget(spinbx)
 
-        next_bt = QPushButton('Next')
-        next_bt.clicked.connect(self.next)
-        bt_layout.addWidget(next_bt)
+        self.plus_bt = QPushButton('+')
+        self.plus_bt.clicked.connect(self.plus)
+        bt_layout.addWidget(self.plus_bt)
+
+        self.next_bt = QPushButton('Next')
+        self.next_bt.clicked.connect(self.next)
+        bt_layout.addWidget(self.next_bt)
         layout.addLayout(bt_layout)
+
+        cancel_bt = QPushButton('Cancel')
+        cancel_bt.clicked.connect(self.cancel)
+        layout.addWidget(cancel_bt)
+
+        close_bt = QPushButton('Close')
+        close_bt.clicked.connect(self.close)
+        layout.addWidget(close_bt)
+
+        self.prev_bt.setEnabled(False)
+        self.minus_bt.setEnabled(False)
+        self.plus_bt.setEnabled(False)
+        self.next_bt.setEnabled(False)
 
         self.setLayout(layout)
 
@@ -422,6 +451,11 @@ class ManualTriggerGui(QDialog):
         # Save events of predecessor
         if self.meeg and self.events:
             self.meeg.save_events(self.events)
+        else:
+            self.prev_bt.setEnabled(True)
+            self.minus_bt.setEnabled(True)
+            self.plus_bt.setEnabled(True)
+            self.next_bt.setEnabled(True)
 
         self.meeg = MEEG(name, self.mw)
         self.events = self.meeg.load_events()
@@ -433,12 +467,15 @@ class ManualTriggerGui(QDialog):
         self.trig_ch = _get_trig_ch(self.raw)
 
         self.update_line()
-        self.update_mark()
+        self.idx_label.setText(str(self.ev_idx))
+
+    def set_steps(self, steps):
+        self.steps = steps
 
     def update_line(self):
-        y_data = self.raw.get_data(picks=self.trig_ch,
-                                   start=self.events[self.ev_idx, 0] - 1000,
-                                   stop=self.events[self.ev_idx, 0] + 1000)
+        start = self.events[self.ev_idx, 0] - 1000 - self.raw.first_samp
+        stop = self.events[self.ev_idx, 0] + 1000 - self.raw.first_samp
+        y_data, = self.raw.get_data(picks=self.trig_ch, start=start, stop=stop)
 
         if self.line is None:
             self.line, = self.axes.plot(self.x_data, y_data, 'b')
@@ -450,19 +487,34 @@ class ManualTriggerGui(QDialog):
 
     def previous(self):
         self.ev_idx -= 1
+        if self.ev_idx < 0:
+            self.ev_idx = 0
         self.update_line()
+        self.idx_label.setText(str(self.ev_idx))
 
     def next(self):
         self.ev_idx += 1
+        if self.ev_idx > len(self.events) - 1:
+            self.ev_idx = len(self.events) - 1
         self.update_line()
+        self.idx_label.setText(str(self.ev_idx))
 
     def minus(self):
-        self.events[self.ev_idx, 0] -= 1
+        self.events[self.ev_idx, 0] -= self.steps
         self.update_line()
 
     def plus(self):
-        self.events[self.ev_idx, 0] += 1
+        self.events[self.ev_idx, 0] += self.steps
         self.update_line()
+
+    def cancel(self):
+        self.events = None
+        self.close()
+
+    def closeEvent(self, event):
+        if self.events is not None:
+            self.meeg.save_events(self.events)
+        event.accept()
 
 
 def manual_trigger_gui(mw):
