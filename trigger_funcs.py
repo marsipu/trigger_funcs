@@ -317,33 +317,36 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     ch_pos = dict()
     hsp = None
     hsp_points = list()
-    extra_points = [dp for dp in raw.info['dig'] if int(dp['kind']) == 4]
+    if 3 not in set([int(d['kind']) for d in raw.info['dig']]):
+        extra_points = [dp for dp in raw.info['dig'] if int(dp['kind']) == 4]
 
-    if eeg_dig_first:
-        for dp in extra_points[:n_eeg_channels]:
-            ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
-            hsp_points = [dp['r'] for dp in extra_points[n_eeg_channels:]]
+        if eeg_dig_first:
+            for dp in extra_points[:n_eeg_channels]:
+                ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
+                hsp_points = [dp['r'] for dp in extra_points[n_eeg_channels:]]
+        else:
+            for dp in extra_points[-n_eeg_channels:]:
+                ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
+                hsp_points = [dp['r'] for dp in extra_points[:-n_eeg_channels]]
+
+        if len(hsp_points) > 0:
+            hsp = np.asarray(hsp_points)
+
+        lpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 1][0]
+        nasion = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 2][0]
+        rpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 3][0]
+
+        hpi = np.asarray([dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 2])
+
+        montage = mne.channels.make_dig_montage(ch_pos, nasion, lpa, rpa, hsp, hpi)
+
+        print(f'Added {n_eeg_channels} EEG-Channels to montage, '
+              f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
+
+        raw.set_montage(montage, on_missing='raise')
+        meeg.save_raw(raw)
     else:
-        for dp in extra_points[-n_eeg_channels:]:
-            ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
-            hsp_points = [dp['r'] for dp in extra_points[:-n_eeg_channels]]
-
-    if len(hsp_points) > 0:
-        hsp = np.asarray(hsp_points)
-
-    lpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 1][0]
-    nasion = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 2][0]
-    rpa = [dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 1 and dp['ident'] == 3][0]
-
-    hpi = np.asarray([dp['r'] for dp in raw.info['dig'] if int(dp['kind']) == 2])
-
-    montage = mne.channels.make_dig_montage(ch_pos, nasion, lpa, rpa, hsp, hpi)
-
-    print(f'Added {n_eeg_channels} EEG-Channels to montage, '
-          f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
-
-    raw.set_montage(montage, on_missing='warn')
-    meeg.save_raw(raw)
+        print('EEG channels already added here')
 
 
 def plot_evokeds_pltest_overview(group):
