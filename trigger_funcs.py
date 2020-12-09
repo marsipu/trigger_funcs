@@ -25,6 +25,8 @@ def _get_trig_ch(raw):
         trig_ch = 'EEG 029'
     elif raw.info['nchan'] == 1:
         trig_ch = '29/Weight'
+    elif raw.info['nchan'] == 3:
+        trig_ch = 'LoadCellTrigger'
     else:
         trig_ch = 'EEG 001'
 
