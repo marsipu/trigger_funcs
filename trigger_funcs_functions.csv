@@ -9,3 +9,4 @@ plot_evokeds_half;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;meeg
 get_dig_eegs;;MEEG;Orga;PP-Trigger;False;False;;trigger_funcs;meeg,n_eeg_channels,eeg_dig_first
 plot_evokeds_pltest_overview;;Group;Plot;PP-Trigger;False;False;;trigger_funcs;group
 manual_trigger_gui;;Other;Orga;PP-Trigger;False;True;;trigger_funcs;mw
+rereference_eog;;MEEG;Orga;PP-Trigger;False;False;[];trigger_funcs;meeg,eog_tuples

@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 from mne.utils._bunch import NamedInt
 from scipy.signal import find_peaks
 
-from mne_pipeline_hd.basic_functions.loading import MEEG
+from mne_pipeline_hd.pipeline_functions.loading import MEEG
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
 from mne_pipeline_hd.basic_functions.plot import plot_save
 from mne_pipeline_hd.gui.loading_widgets import extract_info
@@ -524,3 +524,23 @@ class ManualTriggerGui(QDialog):
 
 def manual_trigger_gui(mw):
     ManualTriggerGui(mw)
+
+
+def rereference_eog(meeg, eog_tuples):
+    raw = meeg.load_raw()
+    for idx, eog_tuple in enumerate(eog_tuples):
+        # eog_raw = raw.copy().pick(eog_channels, exclude=[])
+        #
+        # # Set Reference betweeen both channels
+        # eog_raw = eog_raw.set_eeg_reference(ref_channels=eog_channels[1])
+        # eog_raw = eog_raw.pick(eog_channels[0], exclude=[])
+        # eog_raw.rename_channels({eog_channels[0]: 'EOG Unnipolar'})
+        # raw = raw.add_channels(eog_raw)
+        #
+        # Set Bipolar reference
+        ch_name = f'EOG BP{idx}'
+        mne.set_bipolar_reference(raw, eog_tuple[0], eog_tuple[1], ch_name=ch_name,
+                                  drop_refs=False, copy=False)
+        raw.set_channel_types({ch_name: 'eog'})
+
+    meeg.save_raw(raw)
