@@ -8,12 +8,10 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from mne.utils._bunch import NamedInt
 from scipy.signal import find_peaks
 
 from mne_pipeline_hd.pipeline_functions.loading import MEEG
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
-from mne_pipeline_hd.basic_functions.plot import plot_save
 from mne_pipeline_hd.gui.loading_widgets import extract_info
 from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
@@ -209,7 +207,7 @@ def plot_load_cell_epochs(meeg):
         ax.plot(0, ep[0][1001], 'x')
 
     fig.suptitle(meeg.name)
-    plot_save(meeg, 'trigger_epochs', matplotlib_figure=fig)
+    meeg.plot_save('trigger_epochs', matplotlib_figure=fig)
     fig.show()
 
 
