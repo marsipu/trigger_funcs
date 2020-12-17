@@ -299,7 +299,7 @@ def plot_evokeds_half(meeg):
         h2_evoked.plot(axes=h2_axes)
         axes[0, 1].set_title(f'{meeg.name}-{trial} Second Half')
 
-        plot_save(meeg, 'evokeds', subfolder='h1h2', trial=trial, matplotlib_figure=fig)
+        meeg.plot_save('evokeds', subfolder='h1h2', trial=trial, matplotlib_figure=fig)
         fig.show()
 
 
@@ -312,7 +312,7 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     -----
     By Laura Doll, adapted by Martin Schulz
     """
-    raw = meeg.load_raw()
+    raw = meeg.load_filtered()
 
     ch_pos = dict()
     hsp = None
@@ -344,7 +344,7 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
               f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
 
         raw.set_montage(montage, on_missing='raise')
-        meeg.save_raw(raw)
+        meeg.save_filtered(raw)
     else:
         print('EEG channels already added here')
 
@@ -372,7 +372,7 @@ def plot_evokeds_pltest_overview(group):
             plt.legend()
             plt.xlabel('Time in s')
             plt.ylabel('Source amplitude')
-            plot_save(group, 'pltest_ltc_overview', subfolder=label, trial=trial, matplotlib_figure=fig)
+            group.plot_save('pltest_ltc_overview', subfolder=label, trial=trial, matplotlib_figure=fig)
 
 
 class ManualTriggerGui(QDialog):
@@ -525,7 +525,7 @@ def manual_trigger_gui(mw):
 
 
 def rereference_eog(meeg, eog_tuples):
-    raw = meeg.load_raw()
+    raw = meeg.load_filtered()
     for idx, eog_tuple in enumerate(eog_tuples):
         # eog_raw = raw.copy().pick(eog_channels, exclude=[])
         #
@@ -541,4 +541,4 @@ def rereference_eog(meeg, eog_tuples):
                                   drop_refs=False, copy=False)
         raw.set_channel_types({ch_name: 'eog'})
 
-    meeg.save_raw(raw)
+    meeg.save_filtered(raw)
