@@ -278,7 +278,7 @@ def plot_ica_trigger(meeg):
 
 def reload_info_dict(meeg):
     raw = meeg.load_raw()
-    extract_info(meeg.pr, raw, meeg.name)
+    extract_info(meeg)
 
 
 def plot_evokeds_half(meeg):
@@ -312,7 +312,7 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     -----
     By Laura Doll, adapted by Martin Schulz
     """
-    raw = meeg.load_filtered()
+    raw = meeg.load_raw(pick_types=False)
 
     ch_pos = dict()
     hsp = None
@@ -344,9 +344,11 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
               f'{len(extra_points) - n_eeg_channels} Head-Shape-Points remaining')
 
         raw.set_montage(montage, on_missing='raise')
-        meeg.save_filtered(raw)
     else:
         print('EEG channels already added here')
+
+    extract_info(meeg)
+    meeg.save_raw(raw)
 
 
 def plot_evokeds_pltest_overview(group):
@@ -524,21 +526,16 @@ def manual_trigger_gui(mw):
     ManualTriggerGui(mw)
 
 
-def rereference_eog(meeg, eog_tuples):
-    raw = meeg.load_filtered()
-    for idx, eog_tuple in enumerate(eog_tuples):
-        # eog_raw = raw.copy().pick(eog_channels, exclude=[])
-        #
-        # # Set Reference betweeen both channels
-        # eog_raw = eog_raw.set_eeg_reference(ref_channels=eog_channels[1])
-        # eog_raw = eog_raw.pick(eog_channels[0], exclude=[])
-        # eog_raw.rename_channels({eog_channels[0]: 'EOG Unnipolar'})
-        # raw = raw.add_channels(eog_raw)
-        #
+def rereference_eog(meeg, eog_tuple):
+    raw = meeg.load_raw(pick_types=False)
+
+    for idx in range(int(len(eog_tuple) / 2)):
         # Set Bipolar reference
         ch_name = f'EOG BP{idx}'
-        mne.set_bipolar_reference(raw, eog_tuple[0], eog_tuple[1], ch_name=ch_name,
-                                  drop_refs=False, copy=False)
-        raw.set_channel_types({ch_name: 'eog'})
+        if ch_name not in raw.ch_names:
+            mne.set_bipolar_reference(raw, eog_tuple[idx], eog_tuple[idx + 1], ch_name=ch_name,
+                                      drop_refs=False, copy=False)
+            raw.set_channel_types({ch_name: 'eog'})
 
-    meeg.save_filtered(raw)
+    extract_info(meeg)
+    meeg.save_raw(raw)

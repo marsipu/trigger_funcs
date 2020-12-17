@@ -1,4 +1,4 @@
 ;alias;default;unit;description;gui_type;gui_args;group
 n_eeg_channels;;64;;How many EEG-Channels were digitized;IntGui;;PP-Trigger
 eeg_dig_first;;True;;Did the EEG-Channels were digitized before or after the individual digitization points?;BoolGui;;PP-Trigger
-eog_tuples;;[('EEG 044', 'EEG 054')];;;ListGui;;PP-Trigger
+eog_tuple;;['EEG 044', 'EEG 054'];;;ListGui;;PP-Trigger
