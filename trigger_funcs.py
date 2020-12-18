@@ -12,7 +12,6 @@ from scipy.signal import find_peaks
 
 from mne_pipeline_hd.pipeline_functions.loading import MEEG
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
-from mne_pipeline_hd.gui.loading_widgets import extract_info
 from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
 
