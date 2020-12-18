@@ -277,8 +277,7 @@ def plot_ica_trigger(meeg):
 
 
 def reload_info_dict(meeg):
-    raw = meeg.load_raw()
-    extract_info(meeg)
+    meeg.extract_info()
 
 
 def plot_evokeds_half(meeg):
@@ -347,7 +346,7 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     else:
         print('EEG channels already added here')
 
-    extract_info(meeg)
+    meeg.extract_info()
     meeg.save_raw(raw)
 
 
@@ -537,5 +536,5 @@ def rereference_eog(meeg, eog_tuple):
                                       drop_refs=False, copy=False)
             raw.set_channel_types({ch_name: 'eog'})
 
-    extract_info(meeg)
+    meeg.extract_info()
     meeg.save_raw(raw)
