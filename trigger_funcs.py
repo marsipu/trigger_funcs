@@ -530,10 +530,13 @@ def rereference_eog(meeg, eog_tuple):
     for idx in range(int(len(eog_tuple) / 2)):
         # Set Bipolar reference
         ch_name = f'EOG BP{idx}'
-        if ch_name not in raw.ch_names:
-            mne.set_bipolar_reference(raw, eog_tuple[idx], eog_tuple[idx + 1], ch_name=ch_name,
-                                      drop_refs=False, copy=False)
-            raw.set_channel_types({ch_name: 'eog'})
+        if ch_name in raw.ch_names:
+            raw.drop_channels(ch_name)
+            print(f'Dropped existing channel: {ch_name}')
+
+        mne.set_bipolar_reference(raw, eog_tuple[idx], eog_tuple[idx + 1], ch_name=ch_name,
+                                  drop_refs=False, copy=False)
+        raw.set_channel_types({ch_name: 'eog'})
 
     meeg.extract_info()
     meeg.save_raw(raw)
