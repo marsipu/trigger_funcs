@@ -525,7 +525,7 @@ def manual_trigger_gui(mw):
 
 
 def rereference_eog(meeg, eog_tuple):
-    raw = meeg.load_raw(pick_types=False)
+    raw = meeg.load_raw()
 
     # Remove old channels
     for old_ch_name in [f'EOG BP{idx}' for idx in range(10)]:
