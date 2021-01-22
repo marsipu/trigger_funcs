@@ -527,16 +527,20 @@ def manual_trigger_gui(mw):
 def rereference_eog(meeg, eog_tuple):
     raw = meeg.load_raw(pick_types=False)
 
-    for idx in range(int(len(eog_tuple) / 2)):
-        # Set Bipolar reference
-        ch_name = f'EOG BP{idx}'
-        if ch_name in raw.ch_names:
-            raw.drop_channels(ch_name)
-            print(f'Dropped existing channel: {ch_name}')
+    # Remove old channels
+    for old_ch_name in [f'EOG BP{idx}' for idx in range(10)]:
+        if old_ch_name in raw.ch_names:
+            raw = raw.drop_channels(old_ch_name)
+            print(f'Dropped existing channel: {old_ch_name}')
 
-        mne.set_bipolar_reference(raw, eog_tuple[idx], eog_tuple[idx + 1], ch_name=ch_name,
-                                  drop_refs=False, copy=False)
-        raw.set_channel_types({ch_name: 'eog'})
+    # Set Bipolar reference
+    ch_name = f'EOG BP'
+    if ch_name in raw.ch_names:
+        raw = raw.drop_channels(ch_name)
+        print(f'Dropped existing channel: {ch_name}')
 
-    meeg.extract_info()
+    mne.set_bipolar_reference(raw, eog_tuple[0], eog_tuple[1], ch_name=ch_name,
+                              drop_refs=False, copy=False)
+    raw.set_channel_types({ch_name: 'eog'})
+
     meeg.save_raw(raw)
