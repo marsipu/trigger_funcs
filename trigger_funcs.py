@@ -9,6 +9,8 @@ from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from scipy.signal import find_peaks
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
 
 from mne_pipeline_hd.pipeline_functions.loading import MEEG
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
@@ -20,10 +22,10 @@ def _get_trig_ch(raw):
         trig_ch = 'EEG 064'
     elif 130 < raw.info['nchan'] < 160:
         trig_ch = 'EEG 029'
-    elif raw.info['nchan'] == 1:
+    elif '29/Weight' in raw.ch_names:
         trig_ch = '29/Weight'
-    elif raw.info['nchan'] == 3:
-        trig_ch = 'LoadCellTrigger'
+    elif all([ch in raw.ch_names for ch in ['Touch', 'LoadCellTrigger', 'MotorDir']]):
+        trig_ch = ['Touch', 'LoadCellTrigger']
     else:
         trig_ch = 'EEG 001'
 
@@ -67,6 +69,128 @@ def _get_load_cell_trigger(raw):
     return (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
             rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100)
 
+
+def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec, std_factor_lc):
+    raw = meeg.load_raw()
+
+    (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
+     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
+
+    find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
+    events = meeg.load_events()
+
+    for pk in rd1000_peaks:
+        sp = np.asarray(eeg_series[pk - 500:pk + 500])
+        rd100 = np.asarray(rolling_diff100[pk - 500:pk + 500])
+        # Correct Offset so the first 250 ms are around zero
+        spoff = sp - np.mean(sp[:250])
+
+        diff_times = events[:, 0] - (pk + raw.first_samp)
+        neg_diff_times = diff_times[np.nonzero(diff_times < 0)]
+        if len(neg_diff_times) > 0:
+            previous_id = int(events[np.nonzero(diff_times == np.max(neg_diff_times)), 2])
+        else:
+            previous_id = 33
+
+        if previous_id == 33 or previous_id == 1:
+            try:
+                # Get last index under some threshold for rd100
+                rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * std_factor_lc)[0][-1]
+                # Get first value under some threshold for spoff
+                trig_idx = 500 - np.nonzero(spoff[rd100lastidx:500] < np.std(spoff[:250]) * -std_factor_lc)[0][0] \
+                           + rd100lastidx
+                trig_time = pk - trig_idx + raw.first_samp
+                events = np.append(events, [[trig_time, 0, 5]], axis=0)
+            except IndexError:
+                events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
+        elif previous_id == 2:
+            try:
+                # Get last index above some threshold for rd100
+                rd100lastidx = np.nonzero(rd100[:500] > np.std(rd100[:250]) * -std_factor_lc)[0][-1]
+                # Get first value above some threshold for spoff
+                trig_idx = 500 - np.nonzero(spoff[rd100lastidx:500] > np.std(spoff[:250]) * std_factor_lc)[0][0] \
+                           + rd100lastidx
+                trig_time = pk - trig_idx + raw.first_samp
+                events = np.append(events, [[trig_time, 0, 6]], axis=0)
+            except IndexError:
+                events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
+
+    print(f'{len(events)} events found for {meeg.name}')
+
+    # sort events
+    events = events[events[:, 0].argsort()]
+    # Todo: Somehow(in pltest1_256_au), there are uniques left
+    while len(events[:, 0]) != len(np.unique(events[:, 0])):
+        # Remove duplicates
+        uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
+        duplicates = uniques[np.nonzero(counts != 1)]
+
+        for dpl in duplicates:
+            events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
+
+    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down')
+    print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Up')
+
+    meeg.save_events(events)
+
+
+def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_timeline_by_msec,
+                                    diff_window, min_ev_distance, regression_range, n_jobs):
+    # Load Raw and extract the load-cell-trigger-channel
+    raw = meeg.load_raw()
+    trig_ch = _get_trig_ch(raw)
+    eeg_raw = raw.copy().pick(trig_ch)
+    eeg_series = eeg_raw.to_data_frame()[trig_ch]
+
+    # Difference of Rolling Mean on both sides of each value
+    rolling_left = eeg_series.rolling(diff_window, min_periods=1).mean()
+    rolling_right = eeg_series.iloc[::-1].rolling(diff_window, min_periods=1).mean()
+    rolling_diff = rolling_left - rolling_right
+
+    # Find peaks of the Rolling-Difference
+    rd_peaks, _ = find_peaks(abs(rolling_diff), height=np.std(rolling_diff), distance=min_ev_distance)
+
+    # Find the other events encoded by the binary channel
+    find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
+    events = meeg.load_events()
+
+    event_meta = dict()
+    reg_min, reg_max = regression_range
+
+    # Iterate through the peaks found in the rolling difference
+    for ev_idx, pk in enumerate(rd_peaks):
+        event_meta[ev_idx] = dict()
+        data = np.asarray(eeg_series[pk - reg_max:pk + reg_max + 1])  # Account for leftwards shift in indexing
+
+        # Get closest peak to determine down or up
+        if rd_peaks[ev_idx + 1] - pk < min_ev_distance:
+            direction = 'down'
+        elif ev_idx != 0 and pk - rd_peaks[ev_idx - 1] < min_ev_distance:
+            direction = 'up'
+
+        # Containers to store the results ot the linear-regressions of multiple ranges
+        scores = list()
+        models = dict()
+
+        # Find the best range for a regression fit (going symmetrically from the rolling-difference-peak)
+        for n in range(reg_min, reg_max):
+            # Create the x-array with appropriate shape and transformed
+            x = PolynomialFeatures(degree=3, include_bias=False).fit_transform(np.arange(n*2 + 1).reshape(-1, 1))
+            y = data[reg_max - n:reg_max + n + 1]
+            model = LinearRegression(n_jobs=n_jobs).fit(x, y)
+            scores.append(model.score(x, y))
+            models[n] = model
+
+        # Get best model with best_index (which is also the best symmetrical range from the peak)
+        best_idx = scores.index(max(scores)) + reg_min  # Compensate for reg_min because of range(reg_min, ...) above
+        best_model = models[best_idx]
+        poly_x = PolynomialFeatures(degree=3, include_bias=False).fit_transform(np.arange(best_idx*2).reshape(-1, 1))
+        best_y = best_model.predict(poly_x)
+
+        first_time = pk - best_idx + raw.first_samp
+        last_time = pk + best_idx + raw.first_samp
+
+        event_meta[ev_idx][]
 
 @small_func
 def cross_correlation(x, y):
@@ -127,68 +251,6 @@ def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_time
     fig.show()
 
 
-def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
-    raw = meeg.load_raw()
-
-    (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
-     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
-
-    find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
-    events = meeg.load_events()
-
-    for pk in rd1000_peaks:
-        sp = np.asarray(eeg_series[pk - 500:pk + 500])
-        rd100 = np.asarray(rolling_diff100[pk - 500:pk + 500])
-        # Correct Offset
-        spoff = sp - np.mean(sp[:250])
-
-        diff_times = events[:, 0] - (pk + raw.first_samp)
-        neg_diff_times = diff_times[np.nonzero(diff_times < 0)]
-        if len(neg_diff_times) > 0:
-            previous_id = int(events[np.nonzero(diff_times == np.max(neg_diff_times)), 2])
-        else:
-            previous_id = 33
-
-        if previous_id == 33 or previous_id == 1:
-            try:
-                # Get last index under some threshold for rd100
-                rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * 2)[0][-1]
-                # Get first value under some threshold for spoff
-                trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] < np.std(spoff[:250]) * -3)[0][0] + rd100lastidx)
-                trig_time = pk - trig_idx + raw.first_samp
-                events = np.append(events, [[trig_time, 0, 5]], axis=0)
-            except IndexError:
-                events = np.append(events, [[pk + raw.first_samp, 0, 5]], axis=0)
-        elif previous_id == 2:
-            try:
-                # Get last index above some threshold for rd100
-                rd100lastidx = np.nonzero(rd100[:500] > np.std(rd100[:250]) * -2)[0][-1]
-                # Get first value above some threshold for spoff
-                trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] > np.std(spoff[:250]) * 3)[0][0] + rd100lastidx)
-                trig_time = pk - trig_idx + raw.first_samp
-                events = np.append(events, [[trig_time, 0, 6]], axis=0)
-            except IndexError:
-                events = np.append(events, [[pk + raw.first_samp, 0, 6]], axis=0)
-
-    print(f'{len(events)} events found for {meeg.name}')
-
-    # sort events
-    events = events[events[:, 0].argsort()]
-    # Todo: Somehow(in pltest1_256_au), there are uniques left
-    while len(events[:, 0]) != len(np.unique(events[:, 0])):
-        # Remove duplicates
-        uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
-        duplicates = uniques[np.nonzero(counts != 1)]
-
-        for dpl in duplicates:
-            events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
-
-    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down')
-    print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Up')
-
-    meeg.save_events(events)
-
-
 def plot_load_cell_epochs(meeg):
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
@@ -213,11 +275,10 @@ def plot_load_cell_epochs(meeg):
 def plot_part_trigger(meeg):
     raw = meeg.load_raw()
 
-    # raw = raw.filter(0, 20, n_jobs=-1)
     trig_ch = _get_trig_ch(raw)
 
     (pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
-     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
+     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100) = _get_load_cell_trigger(raw)
 
     tmin = 180000
     tmax = 220000
@@ -225,13 +286,14 @@ def plot_part_trigger(meeg):
     plt.figure()
     plt.plot(pd_data[tmin:tmax], label='data')
     plt.plot(pd_data[tmin:tmax], 'ok', label='data_dots')
-    plt.plot(rolling_diff1000[tmin:tmax], label='RollingDiff2000')
+    plt.plot(np.asarray(pd_data))
+    plt.plot(rolling_diff1000[tmin:tmax], label='RollingDiff1000')
     plt.plot(rolling_diff100[tmin:tmax], label='RollingDiff100')
     plt.plot(rolling_diffstd200[tmin:tmax], label='RollingDiffStd200')
     plt.plot(rolling_diffstd100[tmin:tmax], label='RollingDiffStd100')
     plt.plot([p for p in rd1000_peaks if tmin < p < tmax],
-             [rolling_diff1000[p] for p in rd1000_peaks if tmin < p < tmax], 'x', label='RollingDiff2000-Peaks')
-    plt.plot(range(tmin, tmax), np.full(tmax - tmin, std2000), label='RollingDiff2000-Std')
+             [rolling_diff1000[p] for p in rd1000_peaks if tmin < p < tmax], 'x', label='RollingDiff000-Peaks')
+    plt.plot(range(tmin, tmax), np.full(tmax - tmin, std1000), label='RollingDiff2000-Std')
     plt.plot(range(tmin, tmax), np.full(tmax - tmin, stdstd100), label='RollingDiffStd100-Std')
     plt.plot([p for p in rd100_peaks if tmin < p < tmax],
              [rolling_diff100[p] for p in rd100_peaks if tmin < p < tmax], 'x', label='RollingDiff100-Peaks')
