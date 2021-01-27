@@ -1,7 +1,9 @@
 ;alias;default;unit;description;gui_type;gui_args;group
 n_eeg_channels;;64;;How many EEG-Channels were digitized;IntGui;;PP-Trigger
 eeg_dig_first;;True;;Did the EEG-Channels were digitized before or after the individual digitization points?;BoolGui;;PP-Trigger
-eog_tuple;;('EEG 033', 'EEG 042');;;ListGui;;PP-Trigger
-diff_window;;1000;;The size of the window (for each side) for the rolling-difference;IntGui;;PP-Trigger
-min_ev_distance;;2500;;The minimal distance for events (going from the end from one event to the start of the next)\nCAVE: If the onset-duration of the pinprick is longer than the minimum event distance then the correct identification of up or down won\'t work;IntGui;;PP-Trigger
+eog_tuple;;('EEG 033', 'EEG 042');;Two EEG-Channels to make a bipolar-channel;ListGui;;PP-Trigger
+diff_window;;1000;;The size of the window (for each side) for the rolling-difference;IntGui;{'max_val': 10000};PP-Trigger
+min_ev_distance;;2000;;The minimal distance for events to be recognized by Peak-Detection;IntGui;{'max_val': 10000};PP-Trigger
+max_ev_distance;;4000;;The maximum distance for to be seen as joint (Up/Down);IntGui;{'max_val': 10000};PP-Trigger
 regression_range;;(10, 300);;The range around the diff (for each side) to look for the best regression-range;TupleGui;{'min_val': 2, 'step': 1};PP-Trigger
+regression_degree;;3;;The n-th degree polynomial to fit with linear Regression;IntGui;{'min_val': 1};PP-Trigger

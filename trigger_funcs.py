@@ -1,4 +1,5 @@
 import math
+from os.path import join
 
 import matplotlib.pyplot as plt
 import mne
@@ -70,7 +71,7 @@ def _get_load_cell_trigger(raw):
             rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100)
 
 
-def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec, std_factor_lc):
+def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
     raw = meeg.load_raw()
 
     (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
@@ -95,10 +96,9 @@ def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_
         if previous_id == 33 or previous_id == 1:
             try:
                 # Get last index under some threshold for rd100
-                rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * std_factor_lc)[0][-1]
+                rd100lastidx = np.nonzero(rd100[:500] < np.std(rd100[:250]) * 2)[0][-1]
                 # Get first value under some threshold for spoff
-                trig_idx = 500 - np.nonzero(spoff[rd100lastidx:500] < np.std(spoff[:250]) * -std_factor_lc)[0][0] \
-                           + rd100lastidx
+                trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] < np.std(spoff[:250]) * -3)[0][0] + rd100lastidx)
                 trig_time = pk - trig_idx + raw.first_samp
                 events = np.append(events, [[trig_time, 0, 5]], axis=0)
             except IndexError:
@@ -106,10 +106,9 @@ def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_
         elif previous_id == 2:
             try:
                 # Get last index above some threshold for rd100
-                rd100lastidx = np.nonzero(rd100[:500] > np.std(rd100[:250]) * -std_factor_lc)[0][-1]
+                rd100lastidx = np.nonzero(rd100[:500] > np.std(rd100[:250]) * -2)[0][-1]
                 # Get first value above some threshold for spoff
-                trig_idx = 500 - np.nonzero(spoff[rd100lastidx:500] > np.std(spoff[:250]) * std_factor_lc)[0][0] \
-                           + rd100lastidx
+                trig_idx = 500 - (np.nonzero(spoff[rd100lastidx:500] > np.std(spoff[:250]) * 3)[0][0] + rd100lastidx)
                 trig_time = pk - trig_idx + raw.first_samp
                 events = np.append(events, [[trig_time, 0, 6]], axis=0)
             except IndexError:
@@ -135,7 +134,8 @@ def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_
 
 
 def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_timeline_by_msec,
-                                    diff_window, min_ev_distance, regression_range, n_jobs):
+                                    diff_window, min_ev_distance, max_ev_distance, regression_degree,
+                                    regression_range, n_jobs):
     # Load Raw and extract the load-cell-trigger-channel
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
@@ -154,19 +154,40 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
     find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
     events = meeg.load_events()
 
-    event_meta = dict()
+    events_meta = dict()
     reg_min, reg_max = regression_range
 
     # Iterate through the peaks found in the rolling difference
     for ev_idx, pk in enumerate(rd_peaks):
-        event_meta[ev_idx] = dict()
-        data = np.asarray(eeg_series[pk - reg_max:pk + reg_max + 1])  # Account for leftwards shift in indexing
+        events_meta[ev_idx] = dict()
+        # +1 -> Account for leftwards shift in indexing
+        data = np.asarray(eeg_series[int(pk - reg_max):int(pk + reg_max + 1)])
+
+        print(f'\rProgress: {int((ev_idx + 1)/len(rd_peaks)*100)} %', end='')
 
         # Get closest peak to determine down or up
-        if rd_peaks[ev_idx + 1] - pk < min_ev_distance:
+        if ev_idx == 0:
+            if rd_peaks[1] - pk < max_ev_distance:
+                # Get first trigger if up follows in under min_ev_distance
+                direction = 'down'
+                event_id = 5
+            else:
+                continue
+        elif ev_idx == len(rd_peaks) - 1:
+            if pk - rd_peaks[ev_idx - 1] < max_ev_distance:
+                # Get last trigger if down was before under min_ev_distance
+                direction == 'up'
+                event_id = 6
+            else:
+                continue
+        elif rd_peaks[ev_idx + 1] - pk < max_ev_distance:
             direction = 'down'
-        elif ev_idx != 0 and pk - rd_peaks[ev_idx - 1] < min_ev_distance:
+            event_id = 5
+        elif pk - rd_peaks[ev_idx - 1] < max_ev_distance:
             direction = 'up'
+            event_id = 6
+        else:
+            continue
 
         # Containers to store the results ot the linear-regressions of multiple ranges
         scores = list()
@@ -175,22 +196,144 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
         # Find the best range for a regression fit (going symmetrically from the rolling-difference-peak)
         for n in range(reg_min, reg_max):
             # Create the x-array with appropriate shape and transformed
-            x = PolynomialFeatures(degree=3, include_bias=False).fit_transform(np.arange(n*2 + 1).reshape(-1, 1))
+            x = PolynomialFeatures(degree=regression_degree, include_bias=False)\
+                .fit_transform(np.arange(n*2 + 1).reshape(-1, 1))
             y = data[reg_max - n:reg_max + n + 1]
             model = LinearRegression(n_jobs=n_jobs).fit(x, y)
             scores.append(model.score(x, y))
             models[n] = model
 
         # Get best model with best_index (which is also the best symmetrical range from the peak)
+        best_score = max(scores)
         best_idx = scores.index(max(scores)) + reg_min  # Compensate for reg_min because of range(reg_min, ...) above
         best_model = models[best_idx]
-        poly_x = PolynomialFeatures(degree=3, include_bias=False).fit_transform(np.arange(best_idx*2).reshape(-1, 1))
+        poly_x = PolynomialFeatures(degree=regression_degree, include_bias=False)\
+            .fit_transform(np.arange(best_idx*2).reshape(-1, 1))
         best_y = best_model.predict(poly_x)
+        best_coef = best_model.coef_
 
         first_time = pk - best_idx + raw.first_samp
         last_time = pk + best_idx + raw.first_samp
 
-        event_meta[ev_idx][]
+        # Store information about event in meta-dict
+        events_meta[ev_idx]['best_score'] = best_score
+        events_meta[ev_idx]['first_time'] = first_time
+        events_meta[ev_idx]['last_time'] = last_time
+        events_meta[ev_idx]['best_y'] = best_y
+        events_meta[ev_idx]['best_coef'] = best_coef
+        events_meta[ev_idx]['direction'] = direction
+
+        # add to events
+        events = np.append(events, [[first_time, 0, event_id]], axis=0)
+
+    # sort events by time (first column)
+    events = events[events[:, 0].argsort()]
+
+    # Remove duplicates
+    while len(events[:, 0]) != len(np.unique(events[:, 0])):
+        uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
+        duplicates = uniques[np.nonzero(counts != 1)]
+
+        for dpl in duplicates:
+            events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
+            print(f'Removed duplicate at {dpl}')
+
+    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down')
+    print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Up')
+
+    # Save events
+    meeg.save_events(events)
+
+    # Save event-meta
+    meeg.save_json('load_events_meta', events_meta)
+
+    # Save Trigger-Raw with correlation-signal for plotting
+    reg_signal = np.asarray([])
+    for idx, ev_idx in enumerate(events_meta):
+        first_time = events_meta[ev_idx]['first_time'] - eeg_raw.first_samp
+        best_y = events_meta[ev_idx]['best_y']
+        if idx == 0:
+            # Fill the time before the first event
+            reg_signal = np.concatenate([reg_signal, np.full(first_time, best_y[0]), best_y])
+        elif idx == len(events_meta) - 1:
+            # Fill the time before and after the last event
+            first_fill_time = first_time - (events_meta[ev_idx - 1]['last_time'] - eeg_raw.first_samp)
+            last_fill_time = eeg_raw.n_times - (events_meta[ev_idx]['last_time'] - eeg_raw.first_samp)
+            reg_signal = np.concatenate([reg_signal,
+                                         np.full(first_fill_time, best_y[0]),
+                                         best_y,
+                                         np.full(last_fill_time,  best_y[-1])])
+        else:
+            # Fill the time between events
+            fill_time = first_time - (events_meta[ev_idx - 1]['last_time'] - eeg_raw.first_samp)
+            reg_signal = np.concatenate([reg_signal, np.full(fill_time, best_y[0]), best_y])
+
+    # Fit scalings back to eeg_raw
+    reg_signal /= 1e6
+    eeg_signal = eeg_raw.get_data()[0]
+    reg_info = mne.create_info(ch_names=['reg_signal', 'lc_signal'],
+                               ch_types=['eeg', 'eeg'], sfreq=eeg_raw.info['sfreq'])
+    reg_raw = mne.io.RawArray([reg_signal, eeg_signal], reg_info)
+    reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
+    reg_raw.save(reg_raw_path, overwrite=True)
+    meeg.save_file_params(reg_raw_path)
+
+
+def plot_lc_reg_raw(meeg, show_plots):
+    reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
+    reg_raw = mne.io.read_raw_fif(reg_raw_path, preload=True)
+
+    raw = meeg.load_raw()
+    events = meeg.load_events()
+    events[:, 0] -= raw.first_samp
+
+    reg_raw.plot(events, title=f'{meeg.name}_{meeg.p_preset}-Regression Fit for Load-Cell-Data',
+                 butterfly=False, show_first_samp=True, duration=60)
+
+
+def plot_lc_reg_ave(meeg, show_plots):
+    reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
+    reg_raw = mne.io.read_raw_fif(reg_raw_path, preload=True)
+
+    raw = meeg.load_raw()
+    events = meeg.load_events()
+    events[:, 0] -= raw.first_samp
+
+    lc_epo_down = mne.Epochs(reg_raw, events, {'Down': 5}, baseline=None, picks='lc_signal')
+    lc_epo_up = mne.Epochs(reg_raw, events, {'Up': 6}, baseline=None, picks='lc_signal')
+    reg_epo_down = mne.Epochs(reg_raw, events, {'Down': 5}, baseline=None, picks='reg_signal')
+    reg_epo_up = mne.Epochs(reg_raw, events, {'Up': 6}, baseline=None, picks='reg_signal')
+
+    fig, ax = plt.subplots(2, 2)
+
+    lc_data = lc_epo_down.get_data()
+    for ep in lc_data:
+        ax[0, 0].plot(lc_epo_down.times, ep[0])
+        ax[0, 0].plot(0, ep[0][201], 'rx')
+    ax[0, 0].set_title('Load-Cell-Signal (Down)')
+
+    lc_data = lc_epo_up.get_data()
+    for ep in lc_data:
+        ax[0, 1].plot(lc_epo_up.times, ep[0])
+        ax[0, 1].plot(0, ep[0][201], 'rx')
+    ax[0, 1].set_title('Load-Cell-Signal (Up)')
+
+    reg_data = reg_epo_down.get_data()
+    for ep in reg_data:
+        ax[1, 0].plot(reg_epo_down.times, ep[0])
+        ax[1, 0].plot(0, ep[0][201], 'rx')
+    ax[1, 0].set_title('Regression-Signal (Down)')
+
+    reg_data = reg_epo_up.get_data()
+    for ep in reg_data:
+        ax[1, 1].plot(reg_epo_up.times, ep[0])
+        ax[1, 1].plot(0, ep[0][201], 'rx')
+    ax[1, 1].set_title('Regression-Signal (Up)')
+
+    meeg.plot_save('trigger-regression', matplotlib_figure=fig)
+    if show_plots:
+        fig.show()
+
 
 @small_func
 def cross_correlation(x, y):
@@ -251,7 +394,7 @@ def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_time
     fig.show()
 
 
-def plot_load_cell_epochs(meeg):
+def plot_load_cell_epochs(meeg, show_plots):
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
@@ -269,7 +412,8 @@ def plot_load_cell_epochs(meeg):
 
     fig.suptitle(meeg.name)
     meeg.plot_save('trigger_epochs', matplotlib_figure=fig)
-    fig.show()
+    if show_plots:
+        fig.show()
 
 
 def plot_part_trigger(meeg):
@@ -286,7 +430,6 @@ def plot_part_trigger(meeg):
     plt.figure()
     plt.plot(pd_data[tmin:tmax], label='data')
     plt.plot(pd_data[tmin:tmax], 'ok', label='data_dots')
-    plt.plot(np.asarray(pd_data))
     plt.plot(rolling_diff1000[tmin:tmax], label='RollingDiff1000')
     plt.plot(rolling_diff100[tmin:tmax], label='RollingDiff100')
     plt.plot(rolling_diffstd200[tmin:tmax], label='RollingDiffStd200')
