@@ -159,7 +159,6 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
 
     # Iterate through the peaks found in the rolling difference
     for ev_idx, pk in enumerate(rd_peaks):
-        events_meta[ev_idx] = dict()
         # +1 -> Account for leftwards shift in indexing
         data = np.asarray(eeg_series[int(pk - reg_max):int(pk + reg_max + 1)])
 
@@ -190,6 +189,7 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
             continue
 
         # Containers to store the results ot the linear-regressions of multiple ranges
+        events_meta[ev_idx] = dict()
         scores = list()
         models = dict()
 
