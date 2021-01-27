@@ -253,38 +253,35 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
         first_time = events_meta[ev_idx]['first_time'] - eeg_raw.first_samp
         best_y = events_meta[ev_idx]['best_y']
 
-        # Get previous index even when it is missing
-        n_minus = 1
-        previous_idx = None
-        while True:
-            try:
-                events_meta[ev_idx - n_minus]
-            except KeyError:
-                n_minus += 1
-                if ev_idx - n_minus < 0:
-                    break
-            else:
-                previous_idx = ev_idx - n_minus
-                break
-
-        if previous_idx is None:
-            continue
-
         if idx == 0:
             # Fill the time before the first event
             reg_signal = np.concatenate([reg_signal, np.full(first_time, best_y[0]), best_y])
-        elif idx == len(events_meta) - 1:
-            # Fill the time before and after the last event
-            first_fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
-            last_fill_time = eeg_raw.n_times - (events_meta[ev_idx]['last_time'] - eeg_raw.first_samp)
-            reg_signal = np.concatenate([reg_signal,
-                                         np.full(first_fill_time, best_y[0]),
-                                         best_y,
-                                         np.full(last_fill_time,  best_y[-1])])
         else:
-            # Fill the time between events
-            fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
-            reg_signal = np.concatenate([reg_signal, np.full(fill_time, best_y[0]), best_y])
+            # Get previous index even when it is missing
+            n_minus = 1
+            previous_idx = None
+            while True:
+                try:
+                    events_meta[ev_idx - n_minus]
+                except KeyError:
+                    n_minus += 1
+                    if ev_idx - n_minus < 0:
+                        break
+                else:
+                    previous_idx = ev_idx - n_minus
+                    break
+            if idx == len(events_meta) - 1:
+                # Fill the time before and after the last event
+                first_fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
+                last_fill_time = eeg_raw.n_times - (events_meta[ev_idx]['last_time'] - eeg_raw.first_samp)
+                reg_signal = np.concatenate([reg_signal,
+                                             np.full(first_fill_time, best_y[0]),
+                                             best_y,
+                                             np.full(last_fill_time,  best_y[-1])])
+            else:
+                # Fill the time between events
+                fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
+                reg_signal = np.concatenate([reg_signal, np.full(fill_time, best_y[0]), best_y])
 
     # Fit scalings back to eeg_raw
     reg_signal /= 1e6
