@@ -252,12 +252,22 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
     for idx, ev_idx in enumerate(events_meta):
         first_time = events_meta[ev_idx]['first_time'] - eeg_raw.first_samp
         best_y = events_meta[ev_idx]['best_y']
+        # Get previous index even when it is missing
+        previous_idx = None
+        n_minus = 1
+        while previous_idx == None:
+            try:
+                events_meta[ev_idx - n_minus]
+            except KeyError:
+                n_minus += 1
+            else:
+                previous_idx = ev_idx - n_minus
         if idx == 0:
             # Fill the time before the first event
             reg_signal = np.concatenate([reg_signal, np.full(first_time, best_y[0]), best_y])
         elif idx == len(events_meta) - 1:
             # Fill the time before and after the last event
-            first_fill_time = first_time - (events_meta[ev_idx - 1]['last_time'] - eeg_raw.first_samp)
+            first_fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
             last_fill_time = eeg_raw.n_times - (events_meta[ev_idx]['last_time'] - eeg_raw.first_samp)
             reg_signal = np.concatenate([reg_signal,
                                          np.full(first_fill_time, best_y[0]),
@@ -265,7 +275,7 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
                                          np.full(last_fill_time,  best_y[-1])])
         else:
             # Fill the time between events
-            fill_time = first_time - (events_meta[ev_idx - 1]['last_time'] - eeg_raw.first_samp)
+            fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
             reg_signal = np.concatenate([reg_signal, np.full(fill_time, best_y[0]), best_y])
 
     # Fit scalings back to eeg_raw
@@ -288,7 +298,7 @@ def plot_lc_reg_raw(meeg, show_plots):
     events[:, 0] -= raw.first_samp
 
     reg_raw.plot(events, title=f'{meeg.name}_{meeg.p_preset}-Regression Fit for Load-Cell-Data',
-                 butterfly=False, show_first_samp=True, duration=60)
+                 butterfly=False, show_first_samp=True, duration=60, show=show_plots)
 
 
 def plot_lc_reg_ave(meeg, show_plots):
