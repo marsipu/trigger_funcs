@@ -255,6 +255,7 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
 
         # Get previous index even when it is missing
         n_minus = 1
+        previous_idx = None
         while True:
             try:
                 events_meta[ev_idx - n_minus]
@@ -265,6 +266,9 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
             else:
                 previous_idx = ev_idx - n_minus
                 break
+
+        if previous_idx is None:
+            continue
 
         if idx == 0:
             # Fill the time before the first event
