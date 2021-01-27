@@ -252,16 +252,20 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
     for idx, ev_idx in enumerate(events_meta):
         first_time = events_meta[ev_idx]['first_time'] - eeg_raw.first_samp
         best_y = events_meta[ev_idx]['best_y']
+
         # Get previous index even when it is missing
-        previous_idx = None
         n_minus = 1
-        while previous_idx == None:
+        while True:
             try:
                 events_meta[ev_idx - n_minus]
             except KeyError:
                 n_minus += 1
+                if ev_idx - n_minus < 0:
+                    break
             else:
                 previous_idx = ev_idx - n_minus
+                break
+
         if idx == 0:
             # Fill the time before the first event
             reg_signal = np.concatenate([reg_signal, np.full(first_time, best_y[0]), best_y])
