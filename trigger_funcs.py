@@ -530,7 +530,7 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     -----
     By Laura Doll, adapted by Martin Schulz
     """
-    raw = meeg.load_raw(pick_types=False)
+    raw = meeg.load_raw()
 
     ch_pos = dict()
     hsp = None
