@@ -683,10 +683,23 @@ def change_trig_channel_type(meeg):
     raw = meeg.load_raw()
 
     trig_ch = _get_trig_ch(raw)
-    print(f'Changing {trig_ch} to stim')
-    raw.set_channel_types({trig_ch: 'stim'})
+    if trig_ch in raw.ch_names:
+        print(f'Changing {trig_ch} to stim')
+        raw.set_channel_types({trig_ch: 'stim'})
 
-    meeg.save_raw(raw)
+        if trig_ch in raw.ch_names:
+            raw.rename_channels({trig_ch: 'LoadCell'})
+            print(f'{meeg.name}: Rename Trigger-Channel')
+
+        if trig_ch in meeg.bad_channels:
+            meeg.bad_channels.remove(trig_ch)
+            print(f'{meeg.name}: Removed Trigger-Channel from bad_channels')
+
+        if trig_ch in raw.info['bads']:
+            raw.info['bads'].remove(trig_ch)
+            print(f'{meeg.name}: Removed Trigger-Channel from info["bads"]')
+
+        meeg.save_raw(raw)
 
 
 def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
