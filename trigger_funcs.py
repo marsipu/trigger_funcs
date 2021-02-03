@@ -1,4 +1,5 @@
 import math
+import sys
 from os.path import join
 
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from mne.io import RawArray
 from scipy.signal import find_peaks
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
@@ -19,14 +21,16 @@ from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
 
 def _get_trig_ch(raw):
-    if raw.info['nchan'] > 160:
-        trig_ch = 'EEG 064'
-    elif 130 < raw.info['nchan'] < 160:
-        trig_ch = 'EEG 029'
+    if 'LoadCell' in raw.ch_names:
+        trig_ch = 'LoadCell'
     elif '29/Weight' in raw.ch_names:
         trig_ch = '29/Weight'
     elif all([ch in raw.ch_names for ch in ['Touch', 'LoadCellTrigger', 'MotorDir']]):
-        trig_ch = ['Touch', 'LoadCellTrigger']
+        trig_ch = 'LoadCellTrigger'
+    elif raw.info['nchan'] > 160:
+        trig_ch = 'EEG 064'
+    elif 130 < raw.info['nchan'] < 160:
+        trig_ch = 'EEG 029'
     else:
         trig_ch = 'EEG 001'
 
@@ -162,7 +166,10 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
         # +1 -> Account for leftwards shift in indexing
         data = np.asarray(eeg_series[int(pk - reg_max):int(pk + reg_max + 1)])
 
-        print(f'\rProgress: {int((ev_idx + 1) / len(rd_peaks) * 100)} %', end='')
+        if ev_idx != len(rd_peaks) - 1:
+            sys.stderr.write(f'\rProgress: {int((ev_idx + 1) / len(rd_peaks) * 100)} %')
+        else:
+            sys.stderr.write(f'\rProgress: {int((ev_idx + 1) / len(rd_peaks) * 100)} %\n')
 
         # Get closest peak to determine down or up
         if ev_idx == 0:
@@ -311,15 +318,21 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     # Find peaks of the Rolling-Difference
     rd_peaks, _ = find_peaks(abs(rolling_diff), height=np.std(rolling_diff), distance=min_ev_distance)
 
-    # Find the other events encoded by the binary channel
-    find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
-    events = meeg.load_events()
+    try:
+        # Find the other events encoded by the binary channel
+        find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
+        events = meeg.load_events()
+    except ValueError:
+        events = np.asarray([[0, 0, 0]])
 
     events_meta = dict()
 
     # Iterate through the peaks found in the rolling difference
     for ev_idx, pk in enumerate(rd_peaks):
-        print(f'\rProgress: {int((ev_idx + 1) / len(rd_peaks) * 100)} %', end='')
+        if ev_idx != len(rd_peaks) - 1:
+            sys.stderr.write(f'\rProgress: {int((ev_idx + 1) / len(rd_peaks) * 100)} %')
+        else:
+            sys.stderr.write(f'\rProgress: {int((ev_idx + 1) / len(rd_peaks) * 100)} %\n')
 
         # Get closest peak to determine down or up
         if ev_idx == 0:
@@ -470,33 +483,37 @@ def plot_lc_reg_ave(meeg, show_plots):
     events = meeg.load_events()
     events[:, 0] -= raw.first_samp
 
-    lc_epo_down = mne.Epochs(reg_raw, events, {'Down': 5}, baseline=None, picks='lc_signal')
-    lc_epo_up = mne.Epochs(reg_raw, events, {'Up': 6}, baseline=None, picks='lc_signal')
-    reg_epo_down = mne.Epochs(reg_raw, events, {'Down': 5}, baseline=None, picks='reg_signal')
-    reg_epo_up = mne.Epochs(reg_raw, events, {'Up': 6}, baseline=None, picks='reg_signal')
+    lc_epo_down = mne.Epochs(reg_raw, events, {'Down': 5},
+                             tmin=-0.5, tmax=0.5, baseline=(-0.5, -0.1), picks='lc_signal')
+    lc_epo_up = mne.Epochs(reg_raw, events, {'Up': 6},
+                           tmin=-0.5, tmax=0.5, baseline=(-0.5, -0.1), picks='lc_signal')
+    reg_epo_down = mne.Epochs(reg_raw, events, {'Down': 5},
+                              tmin=-0.5, tmax=0.5, baseline=(-0.5, -0.1), picks='reg_signal')
+    reg_epo_up = mne.Epochs(reg_raw, events, {'Up': 6},
+                            tmin=-0.5, tmax=0.5, baseline=(-0.5, -0.1), picks='reg_signal')
 
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
 
-    lc_data = lc_epo_down.get_data()
-    for ep in lc_data:
+    lc_data_down = lc_epo_down.get_data()
+    for ep in lc_data_down:
         ax[0, 0].plot(lc_epo_down.times, ep[0])
         ax[0, 0].plot(0, ep[0][201], 'rx')
     ax[0, 0].set_title('Load-Cell-Signal (Down)')
 
-    lc_data = lc_epo_up.get_data()
-    for ep in lc_data:
+    lc_data_up = lc_epo_up.get_data()
+    for ep in lc_data_up:
         ax[0, 1].plot(lc_epo_up.times, ep[0])
         ax[0, 1].plot(0, ep[0][201], 'rx')
     ax[0, 1].set_title('Load-Cell-Signal (Up)')
 
-    reg_data = reg_epo_down.get_data()
-    for ep in reg_data:
+    reg_data_down = reg_epo_down.get_data()
+    for ep in reg_data_down:
         ax[1, 0].plot(reg_epo_down.times, ep[0])
         ax[1, 0].plot(0, ep[0][201], 'rx')
     ax[1, 0].set_title('Regression-Signal (Down)')
 
-    reg_data = reg_epo_up.get_data()
-    for ep in reg_data:
+    reg_data_up = reg_epo_up.get_data()
+    for ep in reg_data_up:
         ax[1, 1].plot(reg_epo_up.times, ep[0])
         ax[1, 1].plot(0, ep[0][201], 'rx')
     ax[1, 1].set_title('Regression-Signal (Up)')
@@ -506,6 +523,187 @@ def plot_lc_reg_ave(meeg, show_plots):
     meeg.plot_save('trigger-regression', matplotlib_figure=fig)
     if show_plots:
         fig.show()
+
+
+def get_load_cell_events_regression_baseline_test(meeg, min_duration, shortest_event, adjust_timeline_by_msec,
+                                                  diff_window, min_ev_distance, max_ev_distance, len_baseline,
+                                                  regression_degree, n_jobs):
+    # Load Raw and extract the load-cell-trigger-channel
+    raw = meeg.load_raw()
+    eeg_raw_load = raw.copy().pick('LoadCellTrigger')
+    eeg_raw_touch = raw.copy().pick('Touch')
+    eeg_series_load = eeg_raw_load.to_data_frame()['LoadCellTrigger']
+    eeg_series_touch = eeg_raw_touch.to_data_frame()['Touch']
+    dir_data = raw.get_data()[2]
+    dir_mean = dir_data.mean()
+
+    # Difference of Rolling Mean on both sides of each value
+    rolling_left_load = eeg_series_load.rolling(diff_window, min_periods=1).mean()
+    rolling_right_load = eeg_series_load.iloc[::-1].rolling(diff_window, min_periods=1).mean()
+    rolling_diff_load = rolling_left_load - rolling_right_load
+
+    # Difference of Rolling Mean on both sides of each value
+    rolling_left_touch = eeg_series_touch.rolling(diff_window, min_periods=1).mean()
+    rolling_right_touch = eeg_series_touch.iloc[::-1].rolling(diff_window, min_periods=1).mean()
+    rolling_diff_touch = rolling_left_touch - rolling_right_touch
+
+    # Find peaks of the Rolling-Difference
+    rd_peaks_load, _ = find_peaks(abs(rolling_diff_load), height=np.std(rolling_diff_load), distance=min_ev_distance)
+    rd_peaks_touch, _ = find_peaks(abs(rolling_diff_touch), height=np.std(rolling_diff_touch), distance=min_ev_distance)
+
+    events = np.asarray([[0, 0, 0]])
+    events_meta = {'Load': dict(), 'Touch': dict()}
+
+    # Iterate through the peaks found in the rolling difference
+    for ev_idx, load_pk in enumerate(rd_peaks_load):
+        # Get closest peak in Touch
+        touch_pk = rd_peaks_touch[np.argmin(abs(rd_peaks_touch - load_pk))]
+
+        if dir_data[load_pk] > dir_mean:
+            direction = 'down'
+            load_id = 1
+            touch_id = 2
+        else:
+            direction = 'up'
+            load_id = 3
+            touch_id = 4
+
+        # # Get Trigger-Time by finding the first samples going from peak crossing the baseline
+        # pre_baseline_mean = np.asarray(
+        #         eeg_series_load[load_pk - min_ev_distance:load_pk - min_ev_distance + len_baseline + 1]).mean()
+        # post_baseline_mean = np.asarray(
+        #         eeg_series_load[load_pk + min_ev_distance - len_baseline:load_pk + min_ev_distance + 1]).mean()
+        # pre_peak_data = np.flip(np.asarray(eeg_series_load[load_pk - min_ev_distance:load_pk + 1]))
+        # post_peak_data = np.asarray(eeg_series_load[load_pk:load_pk + min_ev_distance + 1])
+        # if pre_baseline_mean > post_baseline_mean:
+        #     first_idx = load_pk - (pre_peak_data > pre_baseline_mean).argmax()
+        #     last_idx = load_pk + (post_peak_data < post_baseline_mean).argmax()
+        # else:
+        #     first_idx = load_pk - (pre_peak_data < pre_baseline_mean).argmax()
+        #     last_idx = load_pk + (post_peak_data > post_baseline_mean).argmax()
+        #
+        # if first_idx - last_idx > 10:
+        #     # Do the regression for the data spanned by first-time and last-time
+        #     y = eeg_series_load[first_idx:last_idx]
+        #     x = PolynomialFeatures(degree=regression_degree, include_bias=False) \
+        #         .fit_transform(np.arange(len(y)).reshape(-1, 1))
+        #     model = LinearRegression(n_jobs=n_jobs).fit(x, y)
+        #
+        #     score_load = model.score(x, y)
+        #     y_pred_load = model.predict(x)
+        #     coef_load = model.coef_
+        # else:
+        #     score_load, y_pred_load, coef_load = None, None, None
+        #
+        # first_time_load = first_idx + raw.first_samp
+        # last_time_load = last_idx + raw.first_samp
+        #
+        # # Get Trigger-Time by finding the first samples going from peak crossing the baseline
+        # pre_baseline_mean = np.asarray(
+        #         eeg_series_touch[touch_pk - min_ev_distance:touch_pk - min_ev_distance + len_baseline + 1]).mean()
+        # post_baseline_mean = np.asarray(
+        #         eeg_series_touch[touch_pk + min_ev_distance - len_baseline:touch_pk + min_ev_distance + 1]).mean()
+        # pre_peak_data = np.flip(np.asarray(eeg_series_touch[touch_pk - min_ev_distance:touch_pk + 1]))
+        # post_peak_data = np.asarray(eeg_series_touch[touch_pk:touch_pk + min_ev_distance + 1])
+        # if pre_baseline_mean > post_baseline_mean:
+        #     first_idx = touch_pk - (pre_peak_data > pre_baseline_mean).argmax()
+        #     last_idx = touch_pk + (post_peak_data < post_baseline_mean).argmax()
+        # else:
+        #     first_idx = touch_pk - (pre_peak_data < pre_baseline_mean).argmax()
+        #     last_idx = touch_pk + (post_peak_data > post_baseline_mean).argmax()
+        #
+        # if first_idx - last_idx > 10:
+        #     # Do the regression for the data spanned by first-time and last-time
+        #     y = eeg_series_touch[first_idx:last_idx]
+        #     x = PolynomialFeatures(degree=regression_degree, include_bias=False) \
+        #         .fit_transform(np.arange(len(y)).reshape(-1, 1))
+        #     model = LinearRegression(n_jobs=n_jobs).fit(x, y)
+        #
+        #     score_touch = model.score(x, y)
+        #     y_pred_touch = model.predict(x)
+        #     coef_touch = model.coef_
+        # else:
+        #     score_touch, y_pred_touch, coef_touch = None, None, None
+        #
+        # first_time_touch = first_idx + raw.first_samp
+        # last_time_touch = last_idx + raw.first_samp
+        #
+        # # Store information about event in meta-dict
+        # events_meta['Load'][ev_idx] = dict()
+        # events_meta['Load'][ev_idx]['best_score'] = score_load
+        # events_meta['Load'][ev_idx]['first_time'] = first_time_load
+        # events_meta['Load'][ev_idx]['last_time'] = last_time_load
+        # events_meta['Load'][ev_idx]['y_pred'] = y_pred_load
+        # events_meta['Load'][ev_idx]['coef'] = coef_load
+        # events_meta['Load'][ev_idx]['direction'] = direction
+        #
+        # events_meta['Touch'][ev_idx] = dict()
+        # events_meta['Touch'][ev_idx]['best_score'] = score_touch
+        # events_meta['Touch'][ev_idx]['first_time'] = first_time_touch
+        # events_meta['Touch'][ev_idx]['last_time'] = last_time_touch
+        # events_meta['Touch'][ev_idx]['y_pred'] = y_pred_touch
+        # events_meta['Touch'][ev_idx]['coef'] = coef_touch
+        # events_meta['Touch'][ev_idx]['direction'] = direction
+        #
+        # # add to events
+        # events = np.append(events, [[first_time_load, 0, load_id]], axis=0)
+        # events = np.append(events, [[first_time_touch, 0, touch_id]], axis=0)
+
+        # add to events
+        if load_id == 1 and touch_id == 2:
+            events_meta['Load'][ev_idx] = dict()
+            events_meta['Touch'][ev_idx] = dict()
+            events_meta['Load'][ev_idx]['first_time'] = load_pk
+            events_meta['Touch'][ev_idx]['first_time'] = touch_pk
+            events = np.append(events, [[load_pk, 0, load_id]], axis=0)
+            events = np.append(events, [[touch_pk, 0, touch_id]], axis=0)
+
+    # sort events by time (first column)
+    events = events[events[:, 0].argsort()]
+
+    # Remove duplicates
+    while len(events[:, 0]) != len(np.unique(events[:, 0])):
+        uniques, inverse, counts = np.unique(events[:, 0], return_inverse=True, return_counts=True)
+        duplicates = uniques[np.nonzero(counts != 1)]
+
+        for dpl in duplicates:
+            for idx, t in enumerate(np.nonzero(events[:, 0] == dpl)[0]):
+                events[t][0] += idx
+                print(f'Replaced duplicate at {events[t][0]}')
+        # for dpl in duplicates:
+        #     events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
+        #     print(f'Removed duplicate at {dpl}')
+
+    print(f'Found {len(np.nonzero(events[:, 2] == 1)[0])} Events for Down')
+    print(f'Found {len(np.nonzero(events[:, 2] == 3)[0])} Events for Up')
+
+    # Save events
+    meeg.save_events(events)
+
+    # Save event-meta
+    meeg.save_json('load_events_meta', events_meta)
+
+
+def plot_lc_latencies(group, show_plots):
+    fig, ax = plt.subplots(figsize=(16, 10))
+    box_plots = list()
+    box_labels = list()
+
+    for meeg_name in group.group_list:
+        meeg = MEEG(meeg_name, group.mw)
+        events_meta = meeg.load_json('load_events_meta')
+        diffs = [events_meta['Load'][idx]['first_time'] - events_meta['Touch'][idx]['first_time'] for idx in
+                 events_meta['Load']]
+        box_plots.append(diffs)
+        box_labels.append(meeg_name)
+    ax.boxplot(box_plots)
+    ax.set_xticklabels(box_labels, rotation=45, fontsize=6)
+    fig.suptitle(group.name)
+
+    if show_plots:
+        fig.show()
+
+    group.plot_save('Touch-Load-Latencies')
 
 
 @small_func
@@ -945,3 +1143,16 @@ def rereference_eog(meeg, eog_tuple):
     raw.set_channel_types({ch_name: 'eog'})
 
     meeg.save_raw(raw)
+
+
+def adjust_scales_lc_tests(meeg):
+    raw = meeg.load_raw()
+    raw_data = raw.get_data()
+    # Enhance Direction-Channel
+    raw_data[2] *= 1000
+
+    # Diminish Channels to look like EEG
+    raw_data /= 10 ** 6
+
+    new_raw = RawArray(raw_data, raw.info)
+    meeg.save_raw(new_raw)
