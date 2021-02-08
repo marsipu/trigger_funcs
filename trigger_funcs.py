@@ -851,10 +851,6 @@ def plot_ica_trigger(meeg):
     ica_sources.plot(events, n_channels=26, event_id=meeg.event_id, duration=30, scalings='auto')
 
 
-def reload_info_dict(meeg):
-    meeg.extract_info()
-
-
 def plot_evokeds_half(meeg):
     epochs = meeg.load_epochs()
 
@@ -944,7 +940,6 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
     else:
         print('EEG channels already added here')
 
-    meeg.extract_info()
     meeg.save_raw(raw)
 
 
