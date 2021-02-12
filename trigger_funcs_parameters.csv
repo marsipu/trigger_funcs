@@ -1,7 +1,7 @@
 ;alias;default;unit;description;gui_type;gui_args;group
 n_eeg_channels;;64;;How many EEG-Channels were digitized;IntGui;;PP-Trigger
 eeg_dig_first;;True;;Did the EEG-Channels were digitized before or after the individual digitization points?;BoolGui;;PP-Trigger
-eog_tuple;;('EEG 033', 'EEG 042');;Two EEG-Channels to make a bipolar-channel;ListGui;;PP-Trigger
+eog_tuple;;['EEG 032', 'EEG 042'];;Two EEG-Channels to make a bipolar-channel;ListGui;;PP-Trigger
 diff_window;;1000;;The size of the window (for each side) for the rolling-difference;IntGui;{'max_val': 10000};PP-Trigger
 min_ev_distance;;2000;;The minimal distance for events to be recognized by Peak-Detection;IntGui;{'max_val': 10000};PP-Trigger
 max_ev_distance;;4000;;The maximum distance for to be seen as joint (Up/Down);IntGui;{'max_val': 10000};PP-Trigger
