@@ -460,7 +460,6 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     reg_raw = mne.io.RawArray([reg_signal, eeg_signal], reg_info)
     reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
     reg_raw.save(reg_raw_path, overwrite=True)
-    meeg.save_file_params(reg_raw_path)
 
 
 def plot_lc_reg_raw(meeg, show_plots):
@@ -765,21 +764,22 @@ def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_time
     fig.show()
 
 
-def plot_load_cell_epochs(meeg, show_plots):
+def plot_load_cell_ave(meeg, show_plots):
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
     events = meeg.load_events()
 
     event_id = {'Down': 5}
-    eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=-1, tmax=1, baseline=None)
+    eeg_epochs = mne.Epochs(eeg_raw, events, event_id=event_id, tmin=-0.2, tmax=0.2, baseline=None)
     # eeg_epochs.plot(title=meeg.name, event_id=event_id)
 
     data = eeg_epochs.get_data()
     fig, ax = plt.subplots(1, 1)
     for ep in data:
-        ax.plot(range(-1000, 1001), ep[0])
-        ax.plot(0, ep[0][1001], 'x')
+        ep[0] -= np.mean(ep[0][:175])
+        ax.plot(range(-200, 201), ep[0])
+        ax.plot(0, ep[0][201], 'xr')
 
     fig.suptitle(meeg.name)
     meeg.plot_save('trigger_epochs', matplotlib_figure=fig)

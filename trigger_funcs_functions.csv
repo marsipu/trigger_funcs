@@ -2,7 +2,7 @@
 get_load_cell_events;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec
 plot_load_cell_trigger_raw;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec
 plot_part_trigger;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg
-plot_load_cell_epochs;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg
+plot_load_cell_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg
 plot_ica_trigger;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg
 plot_evokeds_half;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg
 change_trig_channel_type;;MEEG;Orga;PP-Trigger;False;False;;trigger_funcs;;meeg
