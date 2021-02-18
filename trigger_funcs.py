@@ -432,8 +432,12 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
             events = np.delete(events, np.nonzero(events[:, 0] == dpl)[0][0], axis=0)
             print(f'Removed duplicate at {dpl}')
 
-    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down')
-    print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Up')
+    print(f'Found {len(np.nonzero(events[:, 2] == 4)[0])} Events for Down-First')
+    print(f'Found {len(np.nonzero(events[:, 2] == 5)[0])} Events for Down-Middle')
+    print(f'Found {len(np.nonzero(events[:, 2] == 6)[0])} Events for Down-Last')
+    print(f'Found {len(np.nonzero(events[:, 2] == 7)[0])} Events for Up-First')
+    print(f'Found {len(np.nonzero(events[:, 2] == 8)[0])} Events for Up-Middle')
+    print(f'Found {len(np.nonzero(events[:, 2] == 9)[0])} Events for Up-Last')
 
     # Save events
     meeg.save_events(events)
@@ -499,13 +503,15 @@ def plot_lc_reg_raw(meeg, show_plots):
                  butterfly=False, show_first_samp=True, duration=60, show=show_plots)
 
 
-def plot_lc_reg_ave(meeg, trig_plt_tmin, trig_plt_tmax, show_plots):
+def plot_lc_reg_ave(meeg, trig_plt_time, show_plots):
     reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
     reg_raw = mne.io.read_raw_fif(reg_raw_path, preload=True)
 
     raw = meeg.load_raw()
     events = meeg.load_events()
     events[:, 0] -= raw.first_samp
+
+    trig_plt_tmin, trig_plt_tmax = trig_plt_time
 
     if 'last' in trial:
         baseline = (0.05, trig_plt_tmax)
@@ -635,32 +641,44 @@ def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_time
     fig.show()
 
 
-def plot_load_cell_ave(meeg, trig_plt_tmin, trig_plt_tmax, show_plots):
+def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
     events = meeg.load_events()
 
     event_id = meeg.event_id
+    trig_plt_tmin, trig_plt_tmax = trig_plt_time
 
-    fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 5))
+    fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 8),
+                           sharey=True)
 
     for idx, trial in enumerate(meeg.sel_trials):
         selected_ev_id = {key: value for key, value in event_id.items() if key == trial}
-        if 'last' in trial:
-            baseline = (0.05, trig_plt_tmax)
-        else:
-            baseline = (trig_plt_tmin, -0.05)
+        # if 'Last' in trial:
+        #     baseline = (round(baseline_limit/1000, 3), trig_plt_tmax)
+        # else:
+        #     baseline = (trig_plt_tmin, -round(baseline_limit / 1000, 3))
 
         eeg_epochs = mne.Epochs(eeg_raw, events, event_id=selected_ev_id,
-                                tmin=trig_plt_tmin, tmax=trig_plt_tmax, baseline=baseline)
+                                tmin=trig_plt_tmin, tmax=trig_plt_tmax, baseline=None)
+
 
         data = eeg_epochs.get_data()
         for ep in data:
-            ax[idx].plot(range(-200, 201), ep[0])
-            ax[idx].plot(0, ep[0][201], 'xr')
+            epd = ep[0]
+            half_idx = int(len(epd)/2) + 1
+            if 'Last' in trial:
+                epd -= np.mean(epd[:half_idx-baseline_limit])
+            else:
+                epd -= np.mean(epd[half_idx + baseline_limit:])
+            ax[idx].plot(eeg_epochs.times, epd)
+            ax[idx].plot(0, epd[half_idx], 'xr')
 
         ax[idx].set_title(trial)
+        ax[idx].set_xlabel('Time [s]')
+        if idx == 0:
+            ax[idx].set_ylabel('Weight (Relative)')
 
     fig.suptitle(meeg.name)
     meeg.plot_save('trigger_epochs', matplotlib_figure=fig)
