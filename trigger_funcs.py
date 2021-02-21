@@ -653,6 +653,9 @@ def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
     fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 8),
                            sharey=True)
 
+    if not isinstance(ax, np.ndarray):
+        ax = [ax]
+
     for idx, trial in enumerate(meeg.sel_trials):
         selected_ev_id = {key: value for key, value in event_id.items() if key == trial}
         # if 'Last' in trial:
@@ -669,9 +672,9 @@ def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
             epd = ep[0]
             half_idx = int(len(epd)/2) + 1
             if 'Last' in trial:
-                epd -= np.mean(epd[:half_idx-baseline_limit])
-            else:
                 epd -= np.mean(epd[half_idx + baseline_limit:])
+            else:
+                epd -= np.mean(epd[:half_idx-baseline_limit])
             ax[idx].plot(eeg_epochs.times, epd)
             ax[idx].plot(0, epd[half_idx], 'xr')
 
