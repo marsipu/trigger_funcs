@@ -666,7 +666,6 @@ def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
         eeg_epochs = mne.Epochs(eeg_raw, events, event_id=selected_ev_id,
                                 tmin=trig_plt_tmin, tmax=trig_plt_tmax, baseline=None)
 
-
         data = eeg_epochs.get_data()
         for ep in data:
             epd = ep[0]
