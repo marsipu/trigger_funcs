@@ -10,3 +10,4 @@ regression_degree;;3;;The n-th degree polynomial to fit with linear Regression;I
 len_baseline;;700;;Length of the baseline spanning from min_ev_distance before the rd-peak;IntGui;{'max_val': 10000};PP-Trigger
 trig_plt_time;;(-0.5, 0.5);;time for plotting the load-cell-data;TupleGui;;PP-Trigger
 baseline_limit;;100;;The distance from the middle of the slope to the beginning of the baseline (avoid having the slope inside the baseline);IntGui;;PP-Trigger
+apply_savgol;;False;;;BoolGui;;PP-Trigger

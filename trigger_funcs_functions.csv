@@ -13,6 +13,7 @@ plot_evokeds_pltest_overview;;Group;Plot;PP-Trigger;False;False;;trigger_funcs;;
 manual_trigger_gui;;Other;Orga;PP-Trigger;False;True;;trigger_funcs;;mw
 rereference_eog;;MEEG;Orga;PP-Trigger;False;False;;trigger_funcs;;meeg,eog_tuple
 plot_lc_reg_raw;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, show_plots
-plot_lc_reg_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plotss
+plot_lc_reg_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol
 adjust_scales_lc_tests;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
 plot_lc_latencies;;Group;Plot;PP-Trigger;True;False;;trigger_funcs;;group,show_plots
+plot_load_cell_group_ave;;Other;Plot;PP-Trigger;True;False;;trigger_funcs;;mw,trig_plt_time,baseline_limit,show_plots,apply_savgol

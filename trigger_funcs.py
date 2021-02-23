@@ -11,11 +11,11 @@ from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from mne.io import RawArray
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 
-from mne_pipeline_hd.pipeline_functions.loading import MEEG
+from mne_pipeline_hd.pipeline_functions.loading import MEEG, Group
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
 from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
@@ -641,7 +641,7 @@ def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_time
     fig.show()
 
 
-def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
+def _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol=False):
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
     eeg_raw = raw.copy().pick(trig_ch)
@@ -650,11 +650,8 @@ def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
     event_id = meeg.event_id
     trig_plt_tmin, trig_plt_tmax = trig_plt_time
 
-    fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 8),
-                           sharey=True)
-
-    if not isinstance(ax, np.ndarray):
-        ax = [ax]
+    epochs_dict = dict()
+    times = None
 
     for idx, trial in enumerate(meeg.sel_trials):
         selected_ev_id = {key: value for key, value in event_id.items() if key == trial}
@@ -665,8 +662,9 @@ def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
 
         eeg_epochs = mne.Epochs(eeg_raw, events, event_id=selected_ev_id,
                                 tmin=trig_plt_tmin, tmax=trig_plt_tmax, baseline=None)
-
+        times = eeg_epochs.times
         data = eeg_epochs.get_data()
+        baseline_data = list()
         for ep in data:
             epd = ep[0]
             half_idx = int(len(epd)/2) + 1
@@ -674,16 +672,72 @@ def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots):
                 epd -= np.mean(epd[half_idx + baseline_limit:])
             else:
                 epd -= np.mean(epd[:half_idx-baseline_limit])
-            ax[idx].plot(eeg_epochs.times, epd)
+
+            if np.mean(epd[half_idx + baseline_limit:]) < 0 and 'Down' in trial:
+                epd *= -1
+            elif np.mean(epd[half_idx + baseline_limit:]) > 0 and 'Up' in trial:
+                epd *= -1
+
+            if apply_savgol:
+                epd = savgol_filter(epd, 201, 5)
+
+            baseline_data.append(epd)
+
+        epochs_dict[trial] = baseline_data
+
+    return epochs_dict, times
+
+
+def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots, apply_savgol):
+
+    epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit)
+    fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 8),
+                           sharey=True)
+    if not isinstance(ax, np.ndarray):
+        ax = [ax]
+    for idx, trial in enumerate(epochs_dict):
+        for epd in epochs_dict[trial]:
+            ax[idx].plot(times, epd, color='blue')
+            half_idx = int(len(epd) / 2) + 1
             ax[idx].plot(0, epd[half_idx], 'xr')
 
-        ax[idx].set_title(trial)
-        ax[idx].set_xlabel('Time [s]')
-        if idx == 0:
-            ax[idx].set_ylabel('Weight (Relative)')
+            ax[idx].set_title(trial)
+            ax[idx].set_xlabel('Time [s]')
+            if idx == 0:
+                ax[idx].set_ylabel('Weight (Relative)')
 
-    fig.suptitle(meeg.name)
-    meeg.plot_save('trigger_epochs', matplotlib_figure=fig)
+        fig.suptitle(meeg.name)
+        meeg.plot_save('trigger_epochs', matplotlib_figure=fig)
+
+        if show_plots:
+            fig.show()
+
+
+def plot_load_cell_group_ave(mw, trig_plt_time, baseline_limit, show_plots, apply_savgol):
+    fig, ax = plt.subplots(len(mw.pr.sel_groups), 1, sharey=False, sharex=True)
+    if not isinstance(ax, np.ndarray):
+        ax = [ax]
+
+    cmap = plt.cm.get_cmap('hsv', len(mw.pr.all_groups[mw.pr.sel_groups[0]]) + 1)
+    for idx, group_name in enumerate(mw.pr.sel_groups):
+        group = Group(group_name, mw)
+        for color_idx, meeg_name in enumerate(group.group_list):
+            meeg = MEEG(meeg_name, group.mw)
+            epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol)
+            color = cmap(color_idx)
+            for epd in epochs_dict['Down-First']:
+                ax[idx].plot(times, epd, color=color, alpha=0.2)
+                half_idx = int(len(epd) / 2) + 1
+                ax[idx].plot(0, epd[half_idx], 'xr')
+
+                ax[idx].set_title(group_name)
+                ax[idx].set_ylabel('Weight')
+                if idx == len(mw.pr.sel_groups) - 1:
+                    ax[idx].set_xlabel('Time [s]')
+
+    plt.subplots_adjust(hspace=0.2)
+    fig.suptitle('Load-Cell Data')
+    Group('all', mw).plot_save('lc_trigger_all', matplotlib_figure=fig)
 
     if show_plots:
         fig.show()
