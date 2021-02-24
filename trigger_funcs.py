@@ -718,7 +718,7 @@ def plot_load_cell_group_ave(mw, trig_plt_time, baseline_limit, show_plots, appl
     if not isinstance(ax, np.ndarray):
         ax = [ax]
 
-    cmap = plt.cm.get_cmap('hsv', len(mw.pr.all_groups[mw.pr.sel_groups[0]]) + 1)
+    cmap = plt.cm.get_cmap('twilight', len(mw.pr.all_groups[mw.pr.sel_groups[0]]) + 1)
     for idx, group_name in enumerate(mw.pr.sel_groups):
         group = Group(group_name, mw)
         for color_idx, meeg_name in enumerate(group.group_list):
