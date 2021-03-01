@@ -17,3 +17,4 @@ plot_lc_reg_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg,trig_plt_t
 adjust_scales_lc_tests;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
 plot_lc_latencies;;Group;Plot;PP-Trigger;True;False;;trigger_funcs;;group,show_plots
 plot_load_cell_group_ave;;Other;Plot;PP-Trigger;True;False;;trigger_funcs;;mw,trig_plt_time,baseline_limit,show_plots,apply_savgol
+get_velo_trigger;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
