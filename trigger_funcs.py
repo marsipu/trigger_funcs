@@ -1109,3 +1109,13 @@ def adjust_scales_lc_tests(meeg):
 
     new_raw = RawArray(raw_data, raw.info)
     meeg.save_raw(new_raw)
+
+
+def get_velo_trigger(meeg):
+    events = meeg.load_events()
+    for row_idx, value in enumerate(events[:, 2]):
+        if value == 1 or value == 2:
+            # Copy the time of the next (first-touch) Trigger-Value, + 1 to avoid duplicates
+            events[row_idx, 0] = events[row_idx + 1, 0] + 1
+
+    meeg.save_events(events)
