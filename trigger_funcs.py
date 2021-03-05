@@ -1116,6 +1116,21 @@ def get_velo_trigger(meeg):
     for row_idx, value in enumerate(events[:, 2]):
         if value == 1 or value == 2:
             # Copy the time of the next (first-touch) Trigger-Value, + 1 to avoid duplicates
-            events[row_idx, 0] = events[row_idx + 1, 0] + 1
+            n = 1
+            while True:
+                if row_idx != len(events[:, 0]) - 1:
+                    next_id = events[row_idx + n, 2]
+                    if next_id == 4:
+                        events[row_idx, 0] = events[row_idx + n, 0] + 1
+                        break
+                    elif row_idx + n < len(events[:, 0]) - 1:
+                        n += 1
+                    else:
+                        break
+                else:
+                    break
+
+    # sort events by time (first column)
+    events = events[events[:, 0].argsort()]
 
     meeg.save_events(events)
