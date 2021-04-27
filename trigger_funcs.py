@@ -5,6 +5,7 @@ from os.path import join
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
+import pandas as pd
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
@@ -304,6 +305,8 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
 def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event, adjust_timeline_by_msec,
                                              diff_window, min_ev_distance, max_ev_distance, len_baseline,
                                              baseline_limit, regression_degree, n_jobs):
+    from string import ascii_lowercase
+
     # Load Raw and extract the load-cell-trigger-channel
     raw = meeg.load_raw()
     trig_ch = _get_trig_ch(raw)
@@ -325,7 +328,8 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     except ValueError:
         events = np.asarray([[0, 0, 0]])
 
-    events_meta = dict()
+    events_meta_dict = dict()
+    events_meta_pd = pd.DataFrame([])
 
     # Iterate through the peaks found in the rolling difference
     for ev_idx, pk in enumerate(rd_peaks):
@@ -388,14 +392,14 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
         last_time = last_idx + raw.first_samp
 
         # Store information about event in meta-dict
-        events_meta[ev_idx] = dict()
-        events_meta[ev_idx]['best_score'] = score
-        events_meta[ev_idx]['first_time'] = first_time
-        events_meta[ev_idx]['peak_time'] = peak_time
-        events_meta[ev_idx]['last_time'] = last_time
-        events_meta[ev_idx]['y_pred'] = y_pred
-        events_meta[ev_idx]['coef'] = coef
-        events_meta[ev_idx]['direction'] = direction
+        events_meta_dict[ev_idx] = dict()
+        events_meta_dict[ev_idx]['best_score'] = score
+        events_meta_dict[ev_idx]['first_time'] = first_time
+        events_meta_dict[ev_idx]['peak_time'] = peak_time
+        events_meta_dict[ev_idx]['last_time'] = last_time
+        events_meta_dict[ev_idx]['y_pred'] = y_pred
+        events_meta_dict[ev_idx]['coef'] = coef
+        events_meta_dict[ev_idx]['direction'] = direction
 
         # Event-ID-naming:
         #   4 = Down-First
@@ -414,6 +418,14 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
             event_id_first = 7
             event_id_middle = 8
             event_id_last = 9
+
+        for timep, evid in zip([first_time, peak_time, last_time],
+                               [event_id_first, event_id_middle, event_id_last]):
+            meta_dict = {'time': timep, 'score': score, 'direction': direction, 'id': evid}
+            coef_dict = {k: v for k, v in zip(list(ascii_lowercase)[:len(coef)], coef)}
+            meta_dict.update(coef_dict)
+            meta_pd = pd.DataFrame(meta_dict)
+            events_meta_pd.append(meta_pd, ignore_index=True)
 
         # add to events
         events = np.append(events, [[first_time, 0, event_id_first]], axis=0)
@@ -442,14 +454,19 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     # Save events
     meeg.save_events(events)
 
-    # Save event-meta
-    meeg.save_json('load_events_meta', events_meta)
+    # Save events-meta dictionary
+    meeg.save_json('load_events_meta', events_meta_dict)
+
+    # Save events-meta DataFrame
+    file_name = 'load_events_meta'
+    file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+    meta_pd.to_csv(file_path)
 
     # Save Trigger-Raw with correlation-signal for plotting
     reg_signal = np.asarray([])
-    for idx, ev_idx in enumerate(events_meta):
-        first_time = events_meta[ev_idx]['first_time'] - eeg_raw.first_samp
-        best_y = events_meta[ev_idx]['y_pred']
+    for idx, ev_idx in enumerate(events_meta_dict):
+        first_time = events_meta_dict[ev_idx]['first_time'] - eeg_raw.first_samp
+        best_y = events_meta_dict[ev_idx]['y_pred']
 
         if idx == 0:
             # Fill the time before the first event
@@ -460,7 +477,7 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
             previous_idx = None
             while True:
                 try:
-                    events_meta[ev_idx - n_minus]
+                    events_meta_dict[ev_idx - n_minus]
                 except KeyError:
                     n_minus += 1
                     if ev_idx - n_minus < 0:
@@ -468,17 +485,17 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
                 else:
                     previous_idx = ev_idx - n_minus
                     break
-            if idx == len(events_meta) - 1:
+            if idx == len(events_meta_dict) - 1:
                 # Fill the time before and after the last event
-                first_fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
-                last_fill_time = eeg_raw.n_times - (events_meta[ev_idx]['last_time'] - eeg_raw.first_samp)
+                first_fill_time = first_time - (events_meta_dict[previous_idx]['last_time'] - eeg_raw.first_samp)
+                last_fill_time = eeg_raw.n_times - (events_meta_dict[ev_idx]['last_time'] - eeg_raw.first_samp)
                 reg_signal = np.concatenate([reg_signal,
                                              np.full(first_fill_time, best_y[0]),
                                              best_y,
                                              np.full(last_fill_time, best_y[-1])])
             else:
                 # Fill the time between events
-                fill_time = first_time - (events_meta[previous_idx]['last_time'] - eeg_raw.first_samp)
+                fill_time = first_time - (events_meta_dict[previous_idx]['last_time'] - eeg_raw.first_samp)
                 reg_signal = np.concatenate([reg_signal, np.full(fill_time, best_y[0]), best_y])
 
     # Fit scalings back to eeg_raw
@@ -490,6 +507,23 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
     reg_raw.save(reg_raw_path, overwrite=True)
 
+
+def _add_events_meta(epochs, meta_pd):
+    """Make sure, that meat-data is assigned to correct epoch
+    (requires parameter "time" and "id" to be included in meta_pd)
+    """
+    meta_pd = meta_pd[meta_pd['id'].isin(epochs.event_id.values())]
+    meta_pd = meta_pd[meta_pd['time'].isin(epochs.events[:, 0])]
+    epochs.metadata = meta_pd
+
+
+def add_lc_events_meta(meeg):
+    epochs = meeg.load_epochs()
+    file_name = 'load_events_meta'
+    file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+    meta_pd = pd.read_csv(file_path)
+
+    _add_events_meta(epochs, meta_pd)
 
 def plot_lc_reg_raw(meeg, show_plots):
     reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
@@ -513,10 +547,10 @@ def plot_lc_reg_ave(meeg, trig_plt_time, show_plots):
 
     trig_plt_tmin, trig_plt_tmax = trig_plt_time
 
-    if 'last' in trial:
-        baseline = (0.05, trig_plt_tmax)
-    else:
-        baseline = (trig_plt_tmin, -0.05)
+    # if 'last' in trial:
+    #     baseline = (0.05, trig_plt_tmax)
+    # else:
+    baseline = (trig_plt_tmin, -0.05)
 
     lc_epo_down = mne.Epochs(reg_raw, events, {'Down': 5},
                              tmin=trig_plt_tmin, tmax=trig_plt_tmax, baseline=baseline, picks='lc_signal')
