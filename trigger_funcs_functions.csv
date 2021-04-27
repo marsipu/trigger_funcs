@@ -4,7 +4,7 @@ get_load_cell_events_regression;;MEEG;Compute;PP-Trigger;False;False;;trigger_fu
 get_load_cell_events_regression_baseline;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg,min_duration,shortest_event,adjust_timeline_by_msec,diff_window,min_ev_distance,max_ev_distance,len_baseline,baseline_limit,regression_degree,n_jobs
 plot_load_cell_trigger_raw;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec
 plot_part_trigger;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, show_plots
-plot_load_cell_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots
+plot_load_cell_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol
 plot_ica_trigger;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, show_plots
 plot_evokeds_half;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, show_plots
 change_trig_channel_type;;MEEG;Orga;PP-Trigger;False;False;;trigger_funcs;;meeg
@@ -18,3 +18,5 @@ adjust_scales_lc_tests;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
 plot_lc_latencies;;Group;Plot;PP-Trigger;True;False;;trigger_funcs;;group,show_plots
 plot_load_cell_group_ave;;Other;Plot;PP-Trigger;True;False;;trigger_funcs;;mw,trig_plt_time,baseline_limit,show_plots,apply_savgol
 get_velo_trigger;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
+add_lc_events_meta;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
+select_events_meta;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg,meta_queries

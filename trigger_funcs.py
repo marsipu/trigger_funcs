@@ -524,6 +524,22 @@ def add_lc_events_meta(meeg):
     meta_pd = pd.read_csv(file_path)
 
     _add_events_meta(epochs, meta_pd)
+    meeg.save_epochs(epochs)
+
+
+def select_events_meta(meeg, meta_queries):
+    epochs = meeg.load_epochs()
+    evokeds = meeg.load_evokeds()
+
+    for name, mq in meta_queries.items():
+        evoked = epochs[mq].average()
+        evoked.comment = name
+        # Add name to sel_trials to allow later processing in functions relying on sel_trials
+        meeg.sel_trials.append(name)
+        evokeds.append(evoked)
+
+    meeg.save_evokeds(evokeds)
+
 
 def plot_lc_reg_raw(meeg, show_plots):
     reg_raw_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_loadcell-regression-raw.fif')
@@ -724,7 +740,7 @@ def _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol=Fals
 
 def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots, apply_savgol):
 
-    epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit)
+    epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol)
     fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 8),
                            sharey=True)
     if not isinstance(ax, np.ndarray):
