@@ -20,3 +20,12 @@ plot_load_cell_group_ave;;Other;Plot;PP-Trigger;True;False;;trigger_funcs;;mw,tr
 get_velo_trigger;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
 add_lc_events_meta;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg
 select_events_meta;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg,meta_queries
+get_ratings;;MEEG;Compute;Events;False;False;;trigger_funcs;;meeg,target_event_id
+add_ratings_meta;;MEEG;Compute;Epochs;False;False;;trigger_funcs;;meeg
+select_ratings;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg
+select_load_cell;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg
+remove_metadata;;MEEG;Compute;Epochs;False;False;;trigger_funcs;;meeg
+plot_group_ratings;;Group;Plot;Ratings;True;False;;trigger_funcs;;group,show_plots
+plot_ratings_comparision;;Group;Plot;Ratings;True;False;;trigger_funcs;;group
+plot_group_lc_coef;;Group;Plot;PP-Trigger;True;False;;trigger_funcs;;group,show_plots
+plot_coef_comparision;;Group;Plot;PP-Trigger;False;False;;trigger_funcs;;group

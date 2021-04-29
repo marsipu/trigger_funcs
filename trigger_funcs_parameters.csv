@@ -12,3 +12,4 @@ trig_plt_time;;(-0.5, 0.5);;time for plotting the load-cell-data;TupleGui;;PP-Tr
 baseline_limit;;100;;The distance from the middle of the slope to the beginning of the baseline (avoid having the slope inside the baseline);IntGui;;PP-Trigger
 apply_savgol;;False;;;BoolGui;;PP-Trigger
 meta_queries;;{};;;DictGui;;PP-Trigger
+target_event_id;;1;;;IntGui;;Epochs

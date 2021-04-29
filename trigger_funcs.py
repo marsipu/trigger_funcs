@@ -421,11 +421,12 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
 
         for timep, evid in zip([first_time, peak_time, last_time],
                                [event_id_first, event_id_middle, event_id_last]):
-            meta_dict = {'time': timep, 'score': score, 'direction': direction, 'id': evid}
-            coef_dict = {k: v for k, v in zip(list(ascii_lowercase)[:len(coef)], coef)}
-            meta_dict.update(coef_dict)
-            meta_pd = pd.DataFrame(meta_dict)
-            events_meta_pd.append(meta_pd, ignore_index=True)
+            meta_dict = {'time': timep, 'score': score, 'direction': direction, 'id': evid,
+                         'coef': coef[0]}
+            # coef_dict = {k: v for k, v in zip(list(ascii_lowercase)[:len(coef)], coef)}
+            # meta_dict.update(coef_dict)
+            meta_series = pd.Series(meta_dict)
+            events_meta_pd = events_meta_pd.append(meta_series, ignore_index=True)
 
         # add to events
         events = np.append(events, [[first_time, 0, event_id_first]], axis=0)
@@ -460,7 +461,8 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     # Save events-meta DataFrame
     file_name = 'load_events_meta'
     file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
-    meta_pd.to_csv(file_path)
+    events_meta_pd['time'] = events_meta_pd['time'].astype(int)
+    events_meta_pd.to_csv(file_path)
 
     # Save Trigger-Raw with correlation-signal for plotting
     reg_signal = np.asarray([])
@@ -508,28 +510,133 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
     reg_raw.save(reg_raw_path, overwrite=True)
 
 
+def get_ratings(meeg, target_event_id):
+    events = meeg.load_events()
+
+    file_name = 'ratings_meta'
+    file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+    rating_meta_pd = pd.DataFrame([], columns=['time', 'id', 'rating'], dtype=int)
+
+    # Get Ratings from Triggers 10-19
+    pre_ratings = np.copy(events[np.nonzero(np.logical_and(10 <= events[:, 2], events[:, 2] <= 19))])
+    first_idx = np.nonzero(np.diff(pre_ratings[:, 0], axis=0) < 200)[0]
+    last_idx = first_idx + 1
+    ratings = pre_ratings[first_idx]
+    ratings[:, 2] = (ratings[:, 2] - 10) * 10 + pre_ratings[last_idx][:, 2] - 10
+
+    # Get time sample from target_event_id
+    target_events = events[np.nonzero(events[:, 2] == target_event_id)]
+    for rating in ratings:
+        # Get time from previous target_event_id
+        try:
+            rating_time = target_events[np.nonzero(target_events[:, 0] - rating[0] < 0)][-1][0]
+        except IndexError:
+            pass
+        else:
+            # Make sure there are no duplicates (because of missing events)
+            if rating_time not in list(rating_meta_pd['time']):
+                rating_value = rating[2]
+                rating_dict = {'time': rating_time, 'id': target_event_id, 'rating': rating_value}
+                meta_series = pd.Series(rating_dict)
+                rating_meta_pd = rating_meta_pd.append(meta_series, ignore_index=True)
+
+    rating_meta_pd.to_csv(file_path)
+
+
+def plot_group_ratings(group, show_plots):
+    ratings = list()
+    for meeg_name in group.group_list:
+        meeg = MEEG(meeg_name, group.mw)
+        file_name = 'ratings_meta'
+        file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+        rating_meta_pd = pd.read_csv(file_path, index_col=0)
+
+        ratings.append(list(rating_meta_pd.loc[:, 'rating']))
+
+    fig, ax = plt.subplots()
+    ax.boxplot(ratings)
+    ax.set_title(f'Ratings for {group.name} for {len(group.group_list)} subjects')
+
+    if show_plots:
+        fig.show()
+
+    group.plot_save('group_ratings', matplotlib_figure=fig)
+
+
+def plot_group_lc_coef(group, show_plots):
+    ratings = list()
+    for meeg_name in group.group_list:
+        meeg = MEEG(meeg_name, group.mw)
+        file_name = 'load_events_meta'
+        file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+        rating_meta_pd = pd.read_csv(file_path, index_col=0)
+
+        ratings.append(list(rating_meta_pd.loc[:, 'coef']))
+
+    fig, ax = plt.subplots()
+    ax.boxplot(ratings)
+    ax.set_title(f'Load-Cell-Coef for {group.name} for {len(group.group_list)} subjects')
+
+    if show_plots:
+        fig.show()
+
+    group.plot_save('group_ratings', matplotlib_figure=fig)
+
+
 def _add_events_meta(epochs, meta_pd):
     """Make sure, that meat-data is assigned to correct epoch
     (requires parameter "time" and "id" to be included in meta_pd)
     """
-    meta_pd = meta_pd[meta_pd['id'].isin(epochs.event_id.values())]
-    meta_pd = meta_pd[meta_pd['time'].isin(epochs.events[:, 0])]
-    epochs.metadata = meta_pd
+    meta_pd_filtered = meta_pd.loc[meta_pd['id'].isin(epochs.event_id.values()) &
+                          meta_pd['time'].isin(epochs.events[:, 0])]
+
+    metatimes = [int(t) for t in meta_pd_filtered['time']]
+
+    # Add missing values
+    for miss_ix in np.nonzero(np.isin(epochs.events[:, 0], metatimes, invert=True))[0]:
+        miss_time, miss_id = epochs.events[miss_ix, [0, 2]]
+        meta_pd_filtered = meta_pd_filtered.append(pd.Series({'time': miss_time, 'id': miss_id}),
+                                                   ignore_index=True)
+
+    meta_pd_filtered = meta_pd_filtered.sort_values('time', ascending=True, ignore_index=True)
+
+    # Integrate into existing metadata
+    if isinstance(epochs.metadata, pd.DataFrame):
+        meta_pd_filtered = pd.merge(epochs.metadata, meta_pd_filtered,
+                                    how='inner', on=['time', 'id'])
+
+    if len(meta_pd_filtered) > 0:
+        epochs.metadata = meta_pd_filtered
+    else:
+        raise RuntimeWarning('No metadata fits to this epochs!')
 
 
 def add_lc_events_meta(meeg):
     epochs = meeg.load_epochs()
     file_name = 'load_events_meta'
     file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
-    meta_pd = pd.read_csv(file_path)
+    meta_pd = pd.read_csv(file_path, index_col=0)
 
     _add_events_meta(epochs, meta_pd)
     meeg.save_epochs(epochs)
 
 
+def add_ratings_meta(meeg):
+    epochs = meeg.load_epochs()
+    file_name = 'ratings_meta'
+    file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+    ratings_pd = pd.read_csv(file_path, index_col=0)
+
+    _add_events_meta(epochs, ratings_pd)
+    meeg.save_epochs(epochs)
+
+
 def select_events_meta(meeg, meta_queries):
     epochs = meeg.load_epochs()
-    evokeds = meeg.load_evokeds()
+    try:
+        evokeds = meeg.load_evokeds()
+    except FileNotFoundError:
+        evokeds = list()
 
     for name, mq in meta_queries.items():
         evoked = epochs[mq].average()
@@ -537,6 +644,108 @@ def select_events_meta(meeg, meta_queries):
         # Add name to sel_trials to allow later processing in functions relying on sel_trials
         meeg.sel_trials.append(name)
         evokeds.append(evoked)
+
+    meeg.save_evokeds(evokeds)
+
+
+def remove_metadata(meeg):
+    epochs = meeg.load_epochs()
+    epochs.metadata = None
+    meeg.save_epochs(epochs)
+
+
+def select_ratings(meeg):
+    epochs = meeg.load_epochs()
+    try:
+        evokeds = meeg.load_evokeds()
+    except FileNotFoundError:
+        evokeds = list()
+
+    ratings_mean = np.mean(epochs.metadata['rating'])
+    evoked_lr = epochs[f'rating < {ratings_mean}'].average()
+    evoked_lr.comment = 'Lower Ratings'
+    evoked_hr = epochs[f'rating > {ratings_mean}'].average()
+    evoked_hr.comment = 'Higher Ratings'
+    meeg.sel_trials += ['Lower Ratings', 'Higher Ratings']
+    evokeds += [evoked_lr, evoked_hr]
+
+    meeg.save_evokeds(evokeds)
+
+
+def plot_ratings_comparision(group):
+    evokeds_lr = list()
+    evokeds_hr = list()
+
+    for meeg_name in group.group_list:
+        meeg = MEEG(meeg_name, group.mw)
+        epochs = meeg.load_epochs()
+
+        try:
+            ratings_mean = np.mean(epochs.metadata['rating'])
+        except (KeyError, TypeError):
+            print(f'{meeg_name} could not be included due to reasons')
+        else:
+            evoked_lr = epochs[f'rating < {ratings_mean}'].average()
+            evoked_lr.comment = 'Lower Ratings'
+            evoked_hr = epochs[f'rating > {ratings_mean}'].average()
+            evoked_hr.comment = 'Higher Ratings'
+
+            evokeds_lr.append(evoked_lr)
+            evokeds_hr.append(evoked_hr)
+
+    ga_lr = mne.grand_average(evokeds_lr)
+    ga_lr.comment = 'Lower Ratings'
+    ga_hr = mne.grand_average(evokeds_hr)
+    ga_hr.comment = 'Higher Ratings'
+
+    fig = mne.viz.plot_compare_evokeds([ga_lr, ga_hr], title=group.name)
+    group.plot_save('compare_ratings', matplotlib_figure=fig)
+
+
+def plot_coef_comparision(group):
+    evokeds_lr = list()
+    evokeds_hr = list()
+
+    for meeg_name in group.group_list:
+        meeg = MEEG(meeg_name, group.mw)
+        epochs = meeg.load_epochs()
+
+        try:
+            coef_mean = np.mean(epochs.metadata['coef'])
+        except (KeyError, TypeError):
+            print(f'{meeg_name} could not be included due to reasons')
+        else:
+            evoked_lr = epochs[f'coef < {coef_mean}'].average()
+            evoked_lr.comment = 'Lower Coef'
+            evoked_hr = epochs[f'coef > {coef_mean}'].average()
+            evoked_hr.comment = 'Higher Coef'
+
+            evokeds_lr.append(evoked_lr)
+            evokeds_hr.append(evoked_hr)
+
+    ga_lr = mne.grand_average(evokeds_lr)
+    ga_lr.comment = 'Lower Coef'
+    ga_hr = mne.grand_average(evokeds_hr)
+    ga_hr.comment = 'Higher Coef'
+
+    fig = mne.viz.plot_compare_evokeds([ga_lr, ga_hr], title=group.name)
+    group.plot_save('compare_coef', matplotlib_figure=fig)
+
+
+def select_load_cell(meeg):
+    epochs = meeg.load_epochs()
+    try:
+        evokeds = meeg.load_evokeds()
+    except FileNotFoundError:
+        evokeds = list()
+
+    coef_mean = np.mean(epochs.metadata['coef'])
+    evoked_lr = epochs[f'rating < {coef_mean}'].average()
+    evoked_lr.comment = 'Lower Ratings'
+    evoked_hr = epochs[f'rating < {coef_mean}'].average()
+    evoked_hr.comment = 'Higher Ratings'
+    meeg.sel_trials += ['Lower Ratings', 'Higher Ratings']
+    evokeds += [evoked_lr, evoked_hr]
 
     meeg.save_evokeds(evokeds)
 
