@@ -563,6 +563,23 @@ def plot_group_ratings(group, show_plots):
     group.plot_save('group_ratings', matplotlib_figure=fig)
 
 
+def plot_group_ratings_compared(mw, show_plots):
+    all_ratings = dict()
+    for group_name in mw.pr.sel_groups:
+        group = Group(group_name, mw)
+        ratings = list()
+        for meeg_name in group.group_list:
+            meeg = MEEG(meeg_name, group.mw)
+            file_name = 'ratings_meta'
+            file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
+            rating_meta_pd = pd.read_csv(file_path, index_col=0)
+
+            ratings.append(np.mean(list(rating_meta_pd.loc[:, 'rating'])))
+        all_ratings[group_name] = ratings
+
+    fig, ax = plt.subplots()
+
+
 def plot_group_lc_coef(group, show_plots):
     ratings = list()
     for meeg_name in group.group_list:
@@ -672,7 +689,7 @@ def select_ratings(meeg):
     meeg.save_evokeds(evokeds)
 
 
-def plot_ratings_comparision(group):
+def plot_ratings_comparision(group, show_plots):
     evokeds_lr = list()
     evokeds_hr = list()
 
@@ -698,11 +715,11 @@ def plot_ratings_comparision(group):
     ga_hr = mne.grand_average(evokeds_hr)
     ga_hr.comment = 'Higher Ratings'
 
-    fig = mne.viz.plot_compare_evokeds([ga_lr, ga_hr], title=group.name)
+    fig = mne.viz.plot_compare_evokeds([ga_lr, ga_hr], title=group.name, show=show_plots)
     group.plot_save('compare_ratings', matplotlib_figure=fig)
 
 
-def plot_coef_comparision(group):
+def plot_coef_comparision(group, show_plots):
     evokeds_lr = list()
     evokeds_hr = list()
 
@@ -728,7 +745,7 @@ def plot_coef_comparision(group):
     ga_hr = mne.grand_average(evokeds_hr)
     ga_hr.comment = 'Higher Coef'
 
-    fig = mne.viz.plot_compare_evokeds([ga_lr, ga_hr], title=group.name)
+    fig = mne.viz.plot_compare_evokeds([ga_lr, ga_hr], title=group.name, show=show_plots)
     group.plot_save('compare_coef', matplotlib_figure=fig)
 
 
@@ -1133,11 +1150,13 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
         if eeg_dig_first:
             for dp in extra_points[:n_eeg_channels]:
                 ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
-                hsp_points = [dp['r'] for dp in extra_points[n_eeg_channels:]]
+                # hsp_points = [dp['r'] for dp in extra_points[n_eeg_channels:]]
         else:
             for dp in extra_points[-n_eeg_channels:]:
                 ch_pos[f'EEG {dp["ident"]:03}'] = dp['r']
-                hsp_points = [dp['r'] for dp in extra_points[:-n_eeg_channels]]
+                # hsp_points = [dp['r'] for dp in extra_points[:-n_eeg_channels]]
+
+        hsp_points = [dp['r'] for dp in extra_points]
 
         if len(hsp_points) > 0:
             hsp = np.asarray(hsp_points)
