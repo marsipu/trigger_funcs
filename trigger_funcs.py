@@ -18,7 +18,6 @@ from sklearn.preprocessing import PolynomialFeatures
 
 from mne_pipeline_hd.pipeline_functions.loading import MEEG, Group
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
-from mne_pipeline_hd.pipeline_functions.decorators import small_func
 
 
 def _get_trig_ch(raw):
@@ -858,7 +857,6 @@ def plot_lc_latencies(group, show_plots):
     group.plot_save('Touch-Load-Latencies')
 
 
-@small_func
 def cross_correlation(x, y):
     # nx = (len(x) + len(y)) // 2
     # if nx != len(y):
