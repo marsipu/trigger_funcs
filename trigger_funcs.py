@@ -308,9 +308,8 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
 
     # Load Raw and extract the load-cell-trigger-channel
     raw = meeg.load_raw()
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
-    eeg_series = eeg_raw.to_data_frame()[trig_ch]
+    eeg_raw = raw.copy().pick(trig_channel)
+    eeg_series = eeg_raw.to_data_frame()[trig_channel]
 
     # Difference of Rolling Mean on both sides of each value
     rolling_left = eeg_series.rolling(diff_window, min_periods=1).mean()
