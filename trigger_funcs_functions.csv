@@ -1,7 +1,7 @@
 ;alias;target;tab;group;matplotlib;mayavi;dependencies;module;pkg_name;func_args
 get_load_cell_events;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec
 get_load_cell_events_regression;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec, diff_window, min_ev_distance, max_ev_distance, regression_range, regression_degree, n_jobs
-get_load_cell_events_regression_baseline;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg,min_duration,shortest_event,adjust_timeline_by_msec,diff_window,min_ev_distance,max_ev_distance,len_baseline,baseline_limit,regression_degree,n_jobs
+get_load_cell_events_regression_baseline;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg,min_duration,shortest_event,adjust_timeline_by_msec,diff_window,min_ev_distance,max_ev_distance,len_baseline,baseline_limit,regression_degree,trig_channel,n_jobs
 plot_load_cell_trigger_raw;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec
 plot_part_trigger;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg, show_plots
 plot_load_cell_ave;;MEEG;Plot;PP-Trigger;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol

@@ -303,7 +303,7 @@ def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_t
 
 def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event, adjust_timeline_by_msec,
                                              diff_window, min_ev_distance, max_ev_distance, len_baseline,
-                                             baseline_limit, regression_degree, n_jobs):
+                                             baseline_limit, regression_degree, trig_channel, n_jobs):
     from string import ascii_lowercase
 
     # Load Raw and extract the load-cell-trigger-channel
