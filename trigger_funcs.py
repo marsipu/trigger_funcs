@@ -1051,10 +1051,9 @@ def plot_part_trigger(meeg, show_plots):
         plt.show()
 
 
-def plot_load_cell_trigger_raw(meeg, min_duration, shortest_event, adjust_timeline_by_msec, show_plots):
+def plot_load_cell_trigger_raw(meeg, min_duration, shortest_event, adjust_timeline_by_msec, trig_channel, show_plots):
     raw = meeg.load_raw()
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
+    eeg_raw = raw.copy().pick(trig_channel)
     try:
         events = meeg.load_events()
     except FileNotFoundError:
