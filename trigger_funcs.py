@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import mne
 import numpy as np
 import pandas as pd
+import scipy
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
@@ -1404,3 +1405,26 @@ def get_velo_trigger(meeg):
     events = events[events[:, 0].argsort()]
 
     meeg.save_events(events)
+
+
+def get_wave_file(meeg, wav_input_type, ch_names, samplerate):
+    import scipy
+    from scipy.io.wavfile import write
+    if not isinstance(ch_names, list):
+        ch_names = [ch_names]
+    if wav_input_type == 'Raw':
+        data = meeg.load_raw()
+    else:
+        data = meeg.load_evokeds()[0]
+    for ch_name in ch_names:
+        datap = data.copy().pick_channels([ch_name])
+        if wav_input_type == 'Raw':
+            dp = datap.get_data()[0]
+        else:
+            dp = datap.data[0]
+        dp /= max(abs(dp)) * 0.99
+        dp = scipy.signal.resample(dp, len(dp) * int(samplerate / data.info['sfreq']))
+        print('Writing Wav-File...')
+        write(join(meeg.save_dir, f'{meeg.name}_{wav_input_type}_{ch_name}.wav'), samplerate, dp)
+
+

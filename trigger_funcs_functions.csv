@@ -29,3 +29,4 @@ plot_group_ratings;;Group;Plot;Ratings;True;False;;trigger_funcs;;group,show_plo
 plot_ratings_comparision;;Group;Plot;Ratings;True;False;;trigger_funcs;;group, show_plots
 plot_group_lc_coef;;Group;Plot;PP-Trigger;True;False;;trigger_funcs;;group,show_plots
 plot_coef_comparision;;Group;Plot;PP-Trigger;False;False;;trigger_funcs;;group, show_plots
+get_wave_file;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg,wav_input_type,ch_names,samplerate

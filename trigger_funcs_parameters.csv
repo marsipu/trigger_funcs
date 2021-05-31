@@ -14,3 +14,5 @@ apply_savgol;;False;;;BoolGui;;PP-Trigger
 meta_queries;;{};;;DictGui;;PP-Trigger
 target_event_id;;1;;;IntGui;;Epochs
 trig_channel;;EEG 001;;Select the Load-Cell-Trigger-Channel;StringGui;;PP-Trigger
+wav_input_type;;Raw;;;ComboGui;{'options': ['Raw', 'Evoked']};PP-Trigger
+samplerate;;16000;;;IntGui;{'max_val': 1000000};PP-Trigger
