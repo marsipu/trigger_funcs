@@ -20,29 +20,10 @@ from sklearn.preprocessing import PolynomialFeatures
 from mne_pipeline_hd.pipeline_functions.loading import MEEG, Group
 from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
 
-
-def _get_trig_ch(raw):
-    if 'LoadCell' in raw.ch_names:
-        trig_ch = 'LoadCell'
-    elif '29/Weight' in raw.ch_names:
-        trig_ch = '29/Weight'
-    elif all([ch in raw.ch_names for ch in ['Touch', 'LoadCellTrigger', 'MotorDir']]):
-        trig_ch = 'LoadCellTrigger'
-    elif raw.info['nchan'] > 160:
-        trig_ch = 'EEG 064'
-    elif 130 < raw.info['nchan'] < 160:
-        trig_ch = 'EEG 029'
-    else:
-        trig_ch = 'EEG 001'
-
-    return trig_ch
-
-
-def _get_load_cell_trigger(raw):
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
+def _get_load_cell_trigger(raw, trig_channel):
+    eeg_raw = raw.copy().pick(trig_channel)
     # eeg_raw = eeg_raw.filter(0, 20, n_jobs=-1)
-    eeg_series = eeg_raw.to_data_frame()[trig_ch]
+    eeg_series = eeg_raw.to_data_frame()[trig_channel]
 
     # Difference of Rolling Mean on both sides of each value, window=2000
     rolling_left1000 = eeg_series.rolling(1000, min_periods=1).mean()
@@ -76,11 +57,11 @@ def _get_load_cell_trigger(raw):
             rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100)
 
 
-def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
+def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec, trig_channel):
     raw = meeg.load_raw()
 
     (eeg_series, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
-     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw)
+     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std2000, stdstd100) = _get_load_cell_trigger(raw, trig_channel)
 
     find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec)
     events = meeg.load_events()
@@ -140,12 +121,11 @@ def get_load_cell_events(meeg, min_duration, shortest_event, adjust_timeline_by_
 
 def get_load_cell_events_regression(meeg, min_duration, shortest_event, adjust_timeline_by_msec,
                                     diff_window, min_ev_distance, max_ev_distance, regression_degree,
-                                    regression_range, n_jobs):
+                                    regression_range, trig_channel, n_jobs):
     # Load Raw and extract the load-cell-trigger-channel
     raw = meeg.load_raw()
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
-    eeg_series = eeg_raw.to_data_frame()[trig_ch]
+    eeg_raw = raw.copy().pick(trig_channel)
+    eeg_series = eeg_raw.to_data_frame()[trig_channel]
 
     # Difference of Rolling Mean on both sides of each value
     rolling_left = eeg_series.rolling(diff_window, min_periods=1).mean()
@@ -873,11 +853,10 @@ def cross_correlation(x, y):
     return lags, correls, max_lag, max_val
 
 
-def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
+def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_timeline_by_msec, trig_channel):
     raw = meeg.load_raw()
 
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
+    eeg_raw = raw.copy().pick(trig_channel)
 
     model_signal_down = np.append(np.full(1000, 1), np.full(1000, 0))
     model_signal_up = np.append(np.full(1000, 0), np.full(1000, 1))
@@ -915,10 +894,9 @@ def _get_load_cell_trigger_model(meeg, min_duration, shortest_event, adjust_time
     fig.show()
 
 
-def _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol=False):
+def _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, trig_channel, apply_savgol=False,):
     raw = meeg.load_raw()
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
+    eeg_raw = raw.copy().pick(trig_channel)
     events = meeg.load_events()
 
     event_id = meeg.event_id
@@ -962,9 +940,9 @@ def _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol=Fals
     return epochs_dict, times
 
 
-def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots, apply_savgol):
+def plot_load_cell_ave(meeg, trig_plt_time, baseline_limit, show_plots, apply_savgol, trig_channel):
 
-    epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol)
+    epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, trig_channel, apply_savgol)
     fig, ax = plt.subplots(1, len(meeg.sel_trials), figsize=(5*len(meeg.sel_trials), 8),
                            sharey=True)
     if not isinstance(ax, np.ndarray):
@@ -1017,13 +995,11 @@ def plot_load_cell_group_ave(mw, trig_plt_time, baseline_limit, show_plots, appl
         fig.show()
 
 
-def plot_part_trigger(meeg, show_plots):
+def plot_part_trigger(meeg, trig_channel, show_plots):
     raw = meeg.load_raw()
 
-    trig_ch = _get_trig_ch(raw)
-
     (pd_data, rolling_diff1000, rolling_diff100, rolling_diffstd200, rolling_diffstd100,
-     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100) = _get_load_cell_trigger(raw)
+     rd1000_peaks, rd100_peaks, rdstd200_peaks, rdstd100_peaks, std1000, stdstd100) = _get_load_cell_trigger(raw, trig_channel)
 
     tmin = 180000
     tmax = 220000
@@ -1064,10 +1040,9 @@ def plot_load_cell_trigger_raw(meeg, min_duration, shortest_event, adjust_timeli
     eeg_raw.plot(events, event_id=meeg.event_id, duration=90, scalings='auto', title=meeg.name, show=show_plots)
 
 
-def plot_ica_trigger(meeg, show_plots):
+def plot_ica_trigger(meeg, trig_channel, show_plots):
     raw = meeg.load_raw()
-    trig_ch = _get_trig_ch(raw)
-    eeg_raw = raw.copy().pick(trig_ch)
+    eeg_raw = raw.copy().pick(trig_channel)
     raw_filtered = meeg.load_filtered()
     raw_filtered = raw_filtered.copy().pick_types(meg=True, eeg=False, eog=False, stim=False, exclude=meeg.bad_channels)
     ica = meeg.load_ica()
@@ -1104,24 +1079,23 @@ def plot_evokeds_half(meeg, show_plots):
             fig.show()
 
 
-def change_trig_channel_type(meeg):
+def change_trig_channel_type(meeg, trig_channel):
     raw = meeg.load_raw()
 
-    trig_ch = _get_trig_ch(raw)
-    if trig_ch in raw.ch_names:
-        print(f'Changing {trig_ch} to stim')
-        raw.set_channel_types({trig_ch: 'stim'})
+    if trig_channel in raw.ch_names:
+        print(f'Changing {trig_channel} to stim')
+        raw.set_channel_types({trig_channel: 'stim'})
 
-        if trig_ch in raw.ch_names:
-            raw.rename_channels({trig_ch: 'LoadCell'})
+        if trig_channel in raw.ch_names:
+            raw.rename_channels({trig_channel: 'LoadCell'})
             print(f'{meeg.name}: Rename Trigger-Channel')
 
-        if trig_ch in meeg.bad_channels:
-            meeg.bad_channels.remove(trig_ch)
+        if trig_channel in meeg.bad_channels:
+            meeg.bad_channels.remove(trig_channel)
             print(f'{meeg.name}: Removed Trigger-Channel from bad_channels')
 
-        if trig_ch in raw.info['bads']:
-            raw.info['bads'].remove(trig_ch)
+        if trig_channel in raw.info['bads']:
+            raw.info['bads'].remove(trig_channel)
             print(f'{meeg.name}: Removed Trigger-Channel from info["bads"]')
 
         meeg.save_raw(raw)
@@ -1290,7 +1264,7 @@ class ManualTriggerGui(QDialog):
         # Start at first event
         self.ev_idx = 0
         self.raw = self.meeg.load_raw()
-        self.trig_ch = _get_trig_ch(self.raw)
+        self.trig_ch = self.meeg.pa['trig_channel']
 
         self.update_line()
         self.idx_label.setText(str(self.ev_idx))
@@ -1428,3 +1402,7 @@ def get_wave_file(meeg, wav_input_type, ch_names, samplerate):
         write(join(meeg.save_dir, f'{meeg.name}_{wav_input_type}_{ch_name}.wav'), samplerate, dp)
 
 
+def make_fixed_length_events(meeg, fixed_id, fixed_duration):
+    raw = meeg.load_raw()
+    events = mne.make_fixed_length_events(raw, id=fixed_id, duration=fixed_duration)
+    meeg.save_events(events)
