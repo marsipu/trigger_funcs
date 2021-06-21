@@ -31,3 +31,4 @@ plot_group_lc_coef;;Group;Plot;PP-Trigger;True;False;;trigger_funcs;;group,show_
 plot_coef_comparision;;Group;Plot;PP-Trigger;False;False;;trigger_funcs;;group, show_plots
 get_wave_file;;MEEG;Compute;PP-Trigger;False;False;;trigger_funcs;;meeg,wav_input_type,ch_names,samplerate
 make_fixed_length_events;;MEEG;Compute;Events;False;False;;trigger_funcs;;meeg,fixed_id,fixed_duration
+get_ecg_channel;;MEEG;Orga;PP-Trigger;False;False;;trigger_funcs;;meeg,ecg_channel,eogecg_target

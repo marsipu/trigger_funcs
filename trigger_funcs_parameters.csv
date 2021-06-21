@@ -18,3 +18,4 @@ wav_input_type;;Raw;;;ComboGui;{'options': ['Raw', 'Evoked']};PP-Trigger
 samplerate;;16000;;;IntGui;{'max_val': 1000000};PP-Trigger
 fixed_id;;1;;;IntGui;;Events
 fixed_duration;;5;;;IntGui;;Events
+eogecg_target;;Raw (Unfiltered);;;ComboGui;{'options': ['Raw (Unfiltered)', 'Raw (Filtered)']};PP-Trigger

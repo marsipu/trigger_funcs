@@ -1321,8 +1321,11 @@ def manual_trigger_gui(mw):
     ManualTriggerGui(mw)
 
 
-def rereference_eog(meeg, eog_tuple):
-    raw = meeg.load_raw()
+def rereference_eog(meeg, eog_tuple, eogecg_target):
+    if eogecg_target == 'Raw (Unfiltered)':
+        raw = meeg.load_raw()
+    else:
+        raw = meeg.load_filtered()
 
     # Remove old channels
     for old_ch_name in [f'EOG BP{idx}' for idx in range(10)]:
@@ -1340,7 +1343,10 @@ def rereference_eog(meeg, eog_tuple):
                               drop_refs=False, copy=False)
     raw.set_channel_types({ch_name: 'eog'})
 
-    meeg.save_raw(raw)
+    if eogecg_target == 'Raw (Unfiltered)':
+        meeg.save_raw(raw)
+    else:
+        meeg.save_filtered(raw)
 
 
 def adjust_scales_lc_tests(meeg):
@@ -1406,3 +1412,20 @@ def make_fixed_length_events(meeg, fixed_id, fixed_duration):
     raw = meeg.load_raw()
     events = mne.make_fixed_length_events(raw, id=fixed_id, duration=fixed_duration)
     meeg.save_events(events)
+
+
+def get_ecg_channel(meeg, ecg_channel, eogecg_target):
+    if eogecg_target == 'Raw (Unfiltered)':
+        raw = meeg.load_raw()
+    else:
+        raw = meeg.load_filtered()
+
+    ecg_raw = raw.copy().pick(ecg_channel)
+    ecg_raw.set_channel_types({ecg_channel: 'ecg'})
+    ecg_raw.rename_channels({ecg_channel: 'ECG'})
+    raw.add_channels([ecg_raw])
+
+    if eogecg_target == 'Raw (Unfiltered)':
+        meeg.save_raw(raw)
+    else:
+        meeg.save_filtered(raw)
