@@ -17,8 +17,8 @@ from scipy.signal import find_peaks, savgol_filter
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 
-from mne_pipeline_hd.pipeline_functions.loading import MEEG, Group
-from mne_pipeline_hd.basic_functions.operations import find_6ch_binary_events
+from mne_pipeline_hd.pipeline.loading import MEEG, Group
+from mne_pipeline_hd.functions.operations import find_6ch_binary_events
 
 def _get_load_cell_trigger(raw, trig_channel):
     eeg_raw = raw.copy().pick(trig_channel)
