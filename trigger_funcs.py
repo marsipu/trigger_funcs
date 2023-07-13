@@ -517,7 +517,7 @@ def get_ratings(meeg, target_event_id):
                 rating_value = rating[2]
                 rating_dict = {'time': rating_time, 'id': target_event_id, 'rating': rating_value}
                 meta_series = pd.Series(rating_dict)
-                rating_meta_pd = pd.concat([rating_meta_pd, meta_series], ignore_index=True)
+                rating_meta_pd = pd.concat([rating_meta_pd, meta_series.to_frame().T], ignore_index=True)
 
     rating_meta_pd.to_csv(file_path)
 
@@ -525,7 +525,7 @@ def get_ratings(meeg, target_event_id):
 def plot_group_ratings(group, show_plots):
     ratings = list()
     for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.mw)
+        meeg = MEEG(meeg_name, group.ct)
         file_name = 'ratings_meta'
         file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
         rating_meta_pd = pd.read_csv(file_path, index_col=0)
@@ -548,7 +548,7 @@ def plot_group_ratings_compared(mw, show_plots):
         group = Group(group_name, mw)
         ratings = list()
         for meeg_name in group.group_list:
-            meeg = MEEG(meeg_name, group.mw)
+            meeg = MEEG(meeg_name, group.ct)
             file_name = 'ratings_meta'
             file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
             rating_meta_pd = pd.read_csv(file_path, index_col=0)
@@ -562,7 +562,7 @@ def plot_group_ratings_compared(mw, show_plots):
 def plot_group_lc_coef(group, show_plots):
     ratings = list()
     for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.mw)
+        meeg = MEEG(meeg_name, group.ct)
         file_name = 'load_events_meta'
         file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
         rating_meta_pd = pd.read_csv(file_path, index_col=0)
@@ -673,7 +673,7 @@ def plot_ratings_comparision(group, show_plots):
     evokeds_hr = list()
 
     for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.mw)
+        meeg = MEEG(meeg_name, group.ct)
         epochs = meeg.load_epochs()
 
         try:
@@ -703,7 +703,7 @@ def plot_coef_comparision(group, show_plots):
     evokeds_hr = list()
 
     for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.mw)
+        meeg = MEEG(meeg_name, group.ct)
         epochs = meeg.load_epochs()
 
         try:
@@ -821,7 +821,7 @@ def plot_lc_latencies(group, show_plots):
     box_labels = list()
 
     for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.mw)
+        meeg = MEEG(meeg_name, group.ct)
         events_meta = meeg.load_json('load_events_meta')
         diffs = [events_meta['Load'][idx]['first_time'] - events_meta['Touch'][idx]['first_time'] for idx in
                  events_meta['Load']]
@@ -974,7 +974,7 @@ def plot_load_cell_group_ave(mw, trig_plt_time, baseline_limit, show_plots, appl
     for idx, group_name in enumerate(mw.pr.sel_groups):
         group = Group(group_name, mw)
         for color_idx, meeg_name in enumerate(group.group_list):
-            meeg = MEEG(meeg_name, group.mw)
+            meeg = MEEG(meeg_name, group.ct)
             epochs_dict, times = _get_load_cell_epochs(meeg, trig_plt_time, baseline_limit, apply_savgol)
             color = cmap(color_idx)
             for epd in epochs_dict['Down-First']:
@@ -1149,7 +1149,7 @@ def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
 def plot_evokeds_pltest_overview(group):
     ltc_dict = dict()
     for file in group.group_list:
-        meeg = MEEG(file, group.mw)
+        meeg = MEEG(file, group.ct)
         ltcs = meeg.load_ltc()
 
         for trial in ltcs:
@@ -1175,7 +1175,7 @@ def plot_evokeds_pltest_overview(group):
 class ManualTriggerGui(QDialog):
     def __init__(self, mw):
         super().__init__(mw)
-        self.mw = mw
+        self.ct = mw
 
         self.meeg = None
         self.events = None
@@ -1192,7 +1192,7 @@ class ManualTriggerGui(QDialog):
         layout = QVBoxLayout()
 
         cmbx = QComboBox()
-        cmbx.addItems(self.mw.pr.all_meeg)
+        cmbx.addItems(self.ct.pr.all_meeg)
         cmbx.currentTextChanged.connect(self.select_meeg)
         layout.addWidget(cmbx)
 
@@ -1257,7 +1257,7 @@ class ManualTriggerGui(QDialog):
             self.plus_bt.setEnabled(True)
             self.next_bt.setEnabled(True)
 
-        self.meeg = MEEG(name, self.mw)
+        self.meeg = MEEG(name, self.ct)
         self.events = self.meeg.load_events()
         # Pick only events with id 5 (Down)
         self.events = self.events[np.nonzero(self.events[:, 2] == 5)]

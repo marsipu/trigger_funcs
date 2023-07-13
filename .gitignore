@@ -5,3 +5,5 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/trigger_funcs.iml
 /.idea/vcs.xml
+
+*.pyc
