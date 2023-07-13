@@ -405,7 +405,7 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
             # coef_dict = {k: v for k, v in zip(list(ascii_lowercase)[:len(coef)], coef)}
             # meta_dict.update(coef_dict)
             meta_series = pd.Series(meta_dict)
-            events_meta_pd = events_meta_pd.append(meta_series, ignore_index=True)
+            events_meta_pd = pd.concat([events_meta_pd, meta_series], ignore_index=True)
 
         # add to events
         events = np.append(events, [[first_time, 0, event_id_first]], axis=0)
@@ -517,7 +517,7 @@ def get_ratings(meeg, target_event_id):
                 rating_value = rating[2]
                 rating_dict = {'time': rating_time, 'id': target_event_id, 'rating': rating_value}
                 meta_series = pd.Series(rating_dict)
-                rating_meta_pd = rating_meta_pd.append(meta_series, ignore_index=True)
+                rating_meta_pd = pd.concat([rating_meta_pd, meta_series], ignore_index=True)
 
     rating_meta_pd.to_csv(file_path)
 
@@ -591,8 +591,8 @@ def _add_events_meta(epochs, meta_pd):
     # Add missing values
     for miss_ix in np.nonzero(np.isin(epochs.events[:, 0], metatimes, invert=True))[0]:
         miss_time, miss_id = epochs.events[miss_ix, [0, 2]]
-        meta_pd_filtered = meta_pd_filtered.append(pd.Series({'time': miss_time, 'id': miss_id}),
-                                                   ignore_index=True)
+        meta_pd_filtered = pd.concat([meta_pd_filtered,
+                                      pd.Series({'time': miss_time, 'id': miss_id})], ignore_index=True)
 
     meta_pd_filtered = meta_pd_filtered.sort_values('time', ascending=True, ignore_index=True)
 
