@@ -517,15 +517,15 @@ def get_ratings(meeg, target_event_id):
                 rating_value = rating[2]
                 rating_dict = {'time': rating_time, 'id': target_event_id, 'rating': rating_value}
                 meta_series = pd.Series(rating_dict)
-                rating_meta_pd = pd.concat([rating_meta_pd, meta_series.to_frame().T], ignore_index=True)
+                rating_meta_pd = pd.concat([rating_meta_pd,
+                                            meta_series.to_frame().T], ignore_index=True)
 
     rating_meta_pd.to_csv(file_path)
 
 
 def plot_group_ratings(group, show_plots):
     ratings = list()
-    for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.ct)
+    for meeg in group.load_items(obj_type='MEEG', data_type=None):
         file_name = 'ratings_meta'
         file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
         rating_meta_pd = pd.read_csv(file_path, index_col=0)
@@ -547,8 +547,7 @@ def plot_group_ratings_compared(mw, show_plots):
     for group_name in mw.pr.sel_groups:
         group = Group(group_name, mw)
         ratings = list()
-        for meeg_name in group.group_list:
-            meeg = MEEG(meeg_name, group.ct)
+        for meeg in group.load_items(obj_type='MEEG', data_type=None):
             file_name = 'ratings_meta'
             file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
             rating_meta_pd = pd.read_csv(file_path, index_col=0)
@@ -561,8 +560,7 @@ def plot_group_ratings_compared(mw, show_plots):
 
 def plot_group_lc_coef(group, show_plots):
     ratings = list()
-    for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.ct)
+    for meeg in group.load_items(obj_type='MEEG', data_type=None):
         file_name = 'load_events_meta'
         file_path = join(meeg.save_dir, f'{meeg.name}_{meeg.p_preset}_{file_name}.csv')
         rating_meta_pd = pd.read_csv(file_path, index_col=0)
@@ -672,14 +670,11 @@ def plot_ratings_comparision(group, show_plots):
     evokeds_lr = list()
     evokeds_hr = list()
 
-    for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.ct)
-        epochs = meeg.load_epochs()
-
+    for epochs, meeg in group.load_items(obj_type='MEEG', data_type='epochs'):
         try:
             ratings_mean = np.mean(epochs.metadata['rating'])
         except (KeyError, TypeError):
-            print(f'{meeg_name} could not be included due to reasons')
+            print(f'{meeg.name} could not be included due to reasons')
         else:
             evoked_lr = epochs[f'rating < {ratings_mean}'].average()
             evoked_lr.comment = 'Lower Ratings'
@@ -702,14 +697,11 @@ def plot_coef_comparision(group, show_plots):
     evokeds_lr = list()
     evokeds_hr = list()
 
-    for meeg_name in group.group_list:
-        meeg = MEEG(meeg_name, group.ct)
-        epochs = meeg.load_epochs()
-
+    for epochs, meeg in group.load_items(obj_type='MEEG', data_type='epochs'):
         try:
             coef_mean = np.mean(epochs.metadata['coef'])
         except (KeyError, TypeError):
-            print(f'{meeg_name} could not be included due to reasons')
+            print(f'{meeg.name} could not be included due to reasons')
         else:
             evoked_lr = epochs[f'coef < {coef_mean}'].average()
             evoked_lr.comment = 'Lower Coef'
