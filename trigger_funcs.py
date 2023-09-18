@@ -7,9 +7,9 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QFont
+from qtpy.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from mne.io import RawArray
@@ -289,6 +289,10 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
 
     # Load Raw and extract the load-cell-trigger-channel
     raw = meeg.load_raw()
+    if trig_channel not in raw.ch_names:
+        print(f'Channel {trig_channel} not found in {meeg.name}')
+        return
+
     eeg_raw = raw.copy().pick(trig_channel)
     eeg_series = eeg_raw.to_data_frame()[trig_channel]
 
@@ -404,8 +408,8 @@ def get_load_cell_events_regression_baseline(meeg, min_duration, shortest_event,
                          'coef': coef[0]}
             # coef_dict = {k: v for k, v in zip(list(ascii_lowercase)[:len(coef)], coef)}
             # meta_dict.update(coef_dict)
-            meta_series = pd.Series(meta_dict)
-            events_meta_pd = pd.concat([events_meta_pd, meta_series], ignore_index=True)
+            new_meta = pd.DataFrame([meta_dict], columns=meta_dict.keys())
+            events_meta_pd = pd.concat([events_meta_pd, new_meta], ignore_index=True)
 
         # add to events
         events = np.append(events, [[first_time, 0, event_id_first]], axis=0)
@@ -518,7 +522,8 @@ def get_ratings(meeg, target_event_id):
                 rating_dict = {'time': rating_time, 'id': target_event_id, 'rating': rating_value}
                 meta_series = pd.Series(rating_dict)
                 rating_meta_pd = pd.concat([rating_meta_pd,
-                                            meta_series.to_frame().T], ignore_index=True)
+                                            meta_series.to_frame().T], axis=0,
+                                           ignore_index=True)
 
     rating_meta_pd.to_csv(file_path)
 
@@ -590,7 +595,8 @@ def _add_events_meta(epochs, meta_pd):
     for miss_ix in np.nonzero(np.isin(epochs.events[:, 0], metatimes, invert=True))[0]:
         miss_time, miss_id = epochs.events[miss_ix, [0, 2]]
         meta_pd_filtered = pd.concat([meta_pd_filtered,
-                                      pd.Series({'time': miss_time, 'id': miss_id})], ignore_index=True)
+                                      pd.Series({'time': miss_time, 'id': miss_id})],
+                                     axis=0, ignore_index=True)
 
     meta_pd_filtered = meta_pd_filtered.sort_values('time', ascending=True, ignore_index=True)
 
@@ -1075,22 +1081,27 @@ def change_trig_channel_type(meeg, trig_channel):
     raw = meeg.load_raw()
 
     if trig_channel in raw.ch_names:
-        print(f'Changing {trig_channel} to stim')
-        raw.set_channel_types({trig_channel: 'stim'})
+        if raw.get_channel_types(trig_channel) != 'stim':
+            print(f'Changing {trig_channel} to stim')
+            raw.set_channel_types({trig_channel: 'stim'})
 
-        if trig_channel in raw.ch_names:
-            raw.rename_channels({trig_channel: 'LoadCell'})
-            print(f'{meeg.name}: Rename Trigger-Channel')
+            if trig_channel in raw.ch_names:
+                raw.rename_channels({trig_channel: 'LoadCell'})
+                print(f'{meeg.name}: Rename Trigger-Channel')
 
-        if trig_channel in meeg.bad_channels:
-            meeg.bad_channels.remove(trig_channel)
-            print(f'{meeg.name}: Removed Trigger-Channel from bad_channels')
+            if trig_channel in meeg.bad_channels:
+                meeg.bad_channels.remove(trig_channel)
+                print(f'{meeg.name}: Removed Trigger-Channel from bad_channels')
 
-        if trig_channel in raw.info['bads']:
-            raw.info['bads'].remove(trig_channel)
-            print(f'{meeg.name}: Removed Trigger-Channel from info["bads"]')
+            if trig_channel in raw.info['bads']:
+                raw.info['bads'].remove(trig_channel)
+                print(f'{meeg.name}: Removed Trigger-Channel from info["bads"]')
 
-        meeg.save_raw(raw)
+            meeg.save_raw(raw)
+        else:
+            print(f'{trig_channel} already stim')
+    else:
+        print(f'{trig_channel} not in raw')
 
 
 def get_dig_eegs(meeg, n_eeg_channels, eeg_dig_first=True):
