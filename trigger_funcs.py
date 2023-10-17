@@ -1191,34 +1191,37 @@ def plot_load_cell_ave(
 
 
 def plot_load_cell_group_ave(
-    mw, trig_plt_time, baseline_limit, show_plots, apply_savgol
+    ct, trig_plt_time, baseline_limit, show_plots, apply_savgol, trig_channel,
 ):
-    fig, ax = plt.subplots(len(mw.pr.sel_groups), 1, sharey=False, sharex=True)
+    fig, ax = plt.subplots(len(ct.pr.sel_groups), 1, sharey=True, sharex=True)
     if not isinstance(ax, np.ndarray):
         ax = [ax]
 
-    cmap = plt.cm.get_cmap("twilight", len(mw.pr.all_groups[mw.pr.sel_groups[0]]) + 1)
-    for idx, group_name in enumerate(mw.pr.sel_groups):
-        group = Group(group_name, mw)
+    cmap = plt.cm.get_cmap("hsv", len(ct.pr.all_groups[ct.pr.sel_groups[0]]) + 1)
+    for idx, group_name in enumerate(ct.pr.sel_groups):
+        group = Group(group_name, ct)
         for color_idx, meeg_name in enumerate(group.group_list):
             meeg = MEEG(meeg_name, group.ct)
             epochs_dict, times = _get_load_cell_epochs(
-                meeg, trig_plt_time, baseline_limit, apply_savgol
+                meeg, trig_plt_time, baseline_limit, trig_channel, apply_savgol,
             )
             color = cmap(color_idx)
-            for epd in epochs_dict["Down-First"]:
-                ax[idx].plot(times, epd, color=color, alpha=0.2)
-                half_idx = int(len(epd) / 2) + 1
-                ax[idx].plot(0, epd[half_idx], "xr")
+            epo_data = list()
+            for epd in epochs_dict["Down"]:
+                epo_data.append(epd)
+            epo_mean = np.mean(epo_data, axis=0)
+            ax[idx].plot(times, epo_mean, color=color, alpha=0.5)
+            half_idx = int(len(epd) / 2) + 1
+            ax[idx].plot(0, epd[half_idx], "xr")
 
-                ax[idx].set_title(group_name)
-                ax[idx].set_ylabel("Weight")
-                if idx == len(mw.pr.sel_groups) - 1:
-                    ax[idx].set_xlabel("Time [s]")
+        ax[idx].set_title(group_name)
+        ax[idx].set_ylabel("Weight")
+        if idx == len(ct.pr.sel_groups) - 1:
+            ax[idx].set_xlabel("Time [s]")
 
     plt.subplots_adjust(hspace=0.2)
     fig.suptitle("Load-Cell Data")
-    Group("all", mw).plot_save("lc_trigger_all", matplotlib_figure=fig)
+    Group("all", ct).plot_save("lc_trigger_all", matplotlib_figure=fig)
 
     if show_plots:
         fig.show()

@@ -1,34 +1,34 @@
 ;alias;target;tab;group;matplotlib;mayavi;dependencies;module;pkg_name;func_args
-get_load_cell_events;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec,trig_channel
-get_load_cell_events_regression;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec, diff_window, min_ev_distance, max_ev_distance, regression_range, regression_degree, trig_channel, n_jobs
-get_load_cell_events_regression_baseline;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg,min_duration,shortest_event,adjust_timeline_by_msec,diff_window,min_ev_distance,max_ev_distance,len_baseline,baseline_limit,regression_degree,trig_channel,n_jobs
-plot_load_cell_trigger_raw;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec,trig_channel,show_plots
-plot_part_trigger;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg, trig_channel, show_plots
-plot_load_cell_ave;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol,trig_channel
-plot_ica_trigger;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg, trig_channel, show_plots
-plot_evokeds_half;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg, show_plots
-change_trig_channel_type;;MEEG;Orga;Pricklaser;False;False;;trigger_funcs;;meeg, trig_channel
-get_dig_eegs;;MEEG;Orga;Pricklaser;False;False;;trigger_funcs;;meeg,n_eeg_channels,eeg_dig_first
+get_load_cell_events;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec,trig_channel
+get_load_cell_events_regression;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec, diff_window, min_ev_distance, max_ev_distance, regression_range, regression_degree, trig_channel, n_jobs
+get_load_cell_events_regression_baseline;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg,min_duration,shortest_event,adjust_timeline_by_msec,diff_window,min_ev_distance,max_ev_distance,len_baseline,baseline_limit,regression_degree,trig_channel,n_jobs
+plot_load_cell_trigger_raw;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg, min_duration, shortest_event, adjust_timeline_by_msec,trig_channel,show_plots
+plot_part_trigger;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg, trig_channel, show_plots
+plot_load_cell_ave;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol,trig_channel
+plot_ica_trigger;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg, trig_channel, show_plots
+plot_evokeds_half;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg, show_plots
+change_trig_channel_type;;MEEG;Orga;LoadCell;False;False;;trigger_funcs;;meeg, trig_channel
+get_dig_eegs;;MEEG;Orga;Preparation;False;False;;trigger_funcs;;meeg,n_eeg_channels,eeg_dig_first
 plot_evokeds_pltest_overview;;Group;Plot;Pricklaser;False;False;;trigger_funcs;;group
-manual_trigger_gui;;Other;Orga;Pricklaser;False;True;;trigger_funcs;;mw
-rereference_eog;;MEEG;Orga;Pricklaser;False;False;;trigger_funcs;;meeg,eog_tuple
-plot_lc_reg_raw;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg, show_plots
-plot_lc_reg_ave;;MEEG;Plot;Pricklaser;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol
-adjust_scales_lc_tests;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg
-plot_lc_latencies;;Group;Plot;Pricklaser;True;False;;trigger_funcs;;group,show_plots
-plot_load_cell_group_ave;;Other;Plot;Pricklaser;True;False;;trigger_funcs;;mw,trig_plt_time,baseline_limit,show_plots,apply_savgol
-get_velo_trigger;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg
-add_lc_events_meta;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg
-select_events_meta;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg,meta_queries
-get_ratings;;MEEG;Compute;Events;False;False;;trigger_funcs;;meeg,target_event_id
-add_ratings_meta;;MEEG;Compute;Epochs;False;False;;trigger_funcs;;meeg
-select_ratings;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg
-select_load_cell;;MEEG;Compute;Evoked;False;False;;trigger_funcs;;meeg
-remove_metadata;;MEEG;Compute;Epochs;False;False;;trigger_funcs;;meeg
+manual_trigger_gui;;Other;Orga;LoadCell;False;True;;trigger_funcs;;mw
+rereference_eog;;MEEG;Orga;Preparation;False;False;;trigger_funcs;;meeg,eog_tuple
+plot_lc_reg_raw;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg, show_plots
+plot_lc_reg_ave;;MEEG;Plot;LoadCell;True;False;;trigger_funcs;;meeg,trig_plt_time,show_plots,apply_savgol
+adjust_scales_lc_tests;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg
+plot_lc_latencies;;Group;Plot;LoadCell;True;False;;trigger_funcs;;group,show_plots
+plot_load_cell_group_ave;;Other;Plot;LoadCell;True;False;;trigger_funcs;;ct,trig_plt_time,baseline_limit,show_plots,apply_savgol,trig_channel
+get_velo_trigger;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg
+add_lc_events_meta;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg
+select_events_meta;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg,meta_queries
+get_ratings;;MEEG;Compute;Ratings;False;False;;trigger_funcs;;meeg,target_event_id
+add_ratings_meta;;MEEG;Compute;Ratings;False;False;;trigger_funcs;;meeg
+select_ratings;;MEEG;Compute;Ratings;False;False;;trigger_funcs;;meeg
+select_load_cell;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg
+remove_metadata;;MEEG;Compute;Ratings;False;False;;trigger_funcs;;meeg
 plot_group_ratings;;Group;Plot;Ratings;True;False;;trigger_funcs;;group,show_plots
 plot_ratings_comparision;;Group;Plot;Ratings;True;False;;trigger_funcs;;group, show_plots
-plot_group_lc_coef;;Group;Plot;Pricklaser;True;False;;trigger_funcs;;group,show_plots
-plot_coef_comparision;;Group;Plot;Pricklaser;False;False;;trigger_funcs;;group, show_plots
-get_wave_file;;MEEG;Compute;Pricklaser;False;False;;trigger_funcs;;meeg,wav_input_type,ch_names,samplerate
+plot_group_lc_coef;;Group;Plot;LoadCell;True;False;;trigger_funcs;;group,show_plots
+plot_coef_comparision;;Group;Plot;LoadCell;False;False;;trigger_funcs;;group, show_plots
+get_wave_file;;MEEG;Compute;LoadCell;False;False;;trigger_funcs;;meeg,wav_input_type,ch_names,samplerate
 make_fixed_length_events;;MEEG;Compute;Events;False;False;;trigger_funcs;;meeg,fixed_id,fixed_duration
-get_ecg_channel;;MEEG;Orga;Pricklaser;False;False;;trigger_funcs;;meeg,ecg_channel,eogecg_target
+get_ecg_channel;;MEEG;Orga;Preparation;False;False;;trigger_funcs;;meeg,ecg_channel,eogecg_target
